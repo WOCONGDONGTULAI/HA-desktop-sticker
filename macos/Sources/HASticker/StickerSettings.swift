@@ -65,6 +65,7 @@ struct StickerSettings: Codable {
     var mode: StickerMode = .desktop
     var appearance: StickerAppearance = .auto
     var lockPosition: Bool = false
+    var showDragBar: Bool = false
     var x: Double?
     var y: Double?
 
@@ -87,7 +88,7 @@ struct StickerSettings: Codable {
     // （Codable 默认不会用默认值兜底，缺 key 会直接 throw，那样会把已配好的地址冲掉）
 
     enum CodingKeys: String, CodingKey {
-        case haURL, width, height, opacity, zoom, cornerRadius, mode, appearance, lockPosition, x, y
+        case haURL, width, height, opacity, zoom, cornerRadius, mode, appearance, lockPosition, showDragBar, x, y
     }
 
     init() {}
@@ -104,6 +105,7 @@ struct StickerSettings: Codable {
         mode         = try c.decodeIfPresent(StickerMode.self, forKey: .mode) ?? d.mode
         appearance   = try c.decodeIfPresent(StickerAppearance.self, forKey: .appearance) ?? d.appearance
         lockPosition = try c.decodeIfPresent(Bool.self, forKey: .lockPosition) ?? d.lockPosition
+        showDragBar  = try c.decodeIfPresent(Bool.self, forKey: .showDragBar) ?? d.showDragBar
         x            = try c.decodeIfPresent(Double.self, forKey: .x)
         y            = try c.decodeIfPresent(Double.self, forKey: .y)
     }

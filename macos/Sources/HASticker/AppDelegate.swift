@@ -117,6 +117,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         lockItem.representedObject = "lock"
         m.addItem(lockItem)
 
+        let barItem = NSMenuItem(title: "显示顶部拖动条", action: #selector(toggleDragBar), keyEquivalent: "")
+        barItem.representedObject = "dragbar"
+        m.addItem(barItem)
+
         m.addItem(.separator())
         m.addItem(withTitle: "清除登录状态", action: #selector(clearLogin), keyEquivalent: "")
         m.addItem(.separator())
@@ -144,6 +148,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         }
         if let lock = menu.items.first(where: { ($0.representedObject as? String) == "lock" }) {
             lock.state = settings.lockPosition ? .on : .off
+        }
+        if let bar = menu.items.first(where: { ($0.representedObject as? String) == "dragbar" }) {
+            bar.state = settings.showDragBar ? .on : .off
         }
     }
 
@@ -206,6 +213,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         settings.lockPosition.toggle()
         settings.save()
         panel.isMovableByWindowBackground = !settings.lockPosition
+    }
+
+    /// 网页上面实在拖不动时的保底手段：在贴纸顶部加一条专用的拖动条
+    @objc private func toggleDragBar() {
+        settings.showDragBar.toggle()
+        settings.save()
+        panel.update(settings: settings)
     }
 
     @objc private func clearLogin() {

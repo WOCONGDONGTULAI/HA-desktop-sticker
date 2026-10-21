@@ -45,6 +45,35 @@ final class StickerPanel: NSPanel {
         applyMode(settings.mode)
         applyFrame()
         applyAppearance()
+        updateDragBar()
+    }
+
+    // MARK: - 拖动条（保底方案：万一网页把事件吃光，还能靠顶部这条拖动）
+
+    private var dragBar: DragBarView?
+
+    private func updateDragBar() {
+        if settings.showDragBar {
+            if dragBar == nil {
+                let bar = DragBarView()
+                bar.translatesAutoresizingMaskIntoConstraints = false
+                bar.onDragEnd = { [weak self] in
+                    self?.captureFrame()
+                    self?.onFrameChanged?()
+                }
+                content.addSubview(bar)
+                NSLayoutConstraint.activate([
+                    bar.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+                    bar.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+                    bar.topAnchor.constraint(equalTo: content.topAnchor),
+                    bar.heightAnchor.constraint(equalToConstant: 22)
+                ])
+                dragBar = bar
+            }
+        } else {
+            dragBar?.removeFromSuperview()
+            dragBar = nil
+        }
     }
 
     /// 允许在需要输入时（比如 HA 登录框）自动拿到键盘焦点
@@ -153,10 +182,57 @@ final class StickerPanel: NSPanel {
         applyMode(settings.mode)
         applyFrame()
         applyAppearance()
+        updateDragBar()
         if appearanceChanged {
             content.reload()
         }
     }
 
     var currentSettings: StickerSettings { settings }
+}
+
+/// 顶部一条半透明的拖动条。它是贴纸窗口里真正的 NSView，
+/// 不会被 WKWebView 抢走事件，所以一定能拖动（网页上面拖不动时的保底手段）。
+private final class DragBarView: NSView {
+    var onDragEnd: (() -> Void)?
+    private var startMouse: NSPoint?
+    private var startOrigin: NSPoint?
+
+    override var isFlipped: Bool { true }
+
+    convenience init() {
+        self.init(frame: .zero)
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor(calibratedWhite: 0.15, alpha: 0.62).setFill()
+        bounds.fill()
+        // 中间画三道小横杠，一眼看出这是能拖的
+        let w: CGFloat = 26, h: CGFloat = 2, gap: CGFloat = 3
+        let x = (bounds.width - w) / 2
+        let y0 = (bounds.height - (h * 3 + gap * 2)) / 2
+        NSColor(calibratedWhite: 1.0, alpha: 0.55).setFill()
+        for i in 0..<3 {
+            NSRect(x: x, y: y0 + CGFloat(i) * (h + gap), width: w, height: h).fill()
+        }
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func mouseDown(with event: NSEvent) {
+        startMouse = NSEvent.mouseLocation
+        startOrigin = window?.frame.origin
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let s = startMouse, let o = startOrigin, let win = window else { return }
+        let now = NSEvent.mouseLocation
+        win.setFrameOrigin(NSPoint(x: o.x + now.x - s.x, y: o.y + now.y - s.y))
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        if startMouse != nil { onDragEnd?() }
+        startMouse = nil
+        startOrigin = nil
+    }
 }
