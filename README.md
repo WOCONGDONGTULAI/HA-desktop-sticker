@@ -56,7 +56,7 @@ Windows 版改的是 `home-assistant/dashboard-sticker.yaml` 里的实体和 `ic
 
 ## 三种贴法
 
-两端都支持三档，右键菜单 / 托盘菜单里切换：
+两端都支持三档，在菜单栏图标的菜单里切换（macOS 右键贴纸不弹菜单）：
 
 | 模式 | 效果 | 适合 |
 | --- | --- | --- |
@@ -70,7 +70,7 @@ Windows 版改的是 `home-assistant/dashboard-sticker.yaml` 里的实体和 `ic
 ## 常见问题
 
 **打不开 / 白屏**
-- HA 地址填错。贴纸里右键 → 设置，确认能 ping 通。
+- HA 地址填错。菜单栏图标 → 设置，确认能 ping 通。
 - 用了 `http://` 明文：macOS 的 ATS 已在本工程的 `Info.plist` 里放开（`NSAllowsArbitraryLoads`），Windows 无此限制。
 - macOS 15 起本地网络要授权，首次会弹「HASticker 想要查找并连接本地网络上的设备」，选允许。
 

@@ -16,7 +16,7 @@ struct NativeStickerView: View {
             Group {
                 if store.status == .idle {
                     placeholder(title: "还没配置",
-                                detail: "填好 HA 地址和长期访问令牌就能用",
+                                detail: "填好 HA 地址和长期访问令牌就能用\n（所有设置都在菜单栏那个图标里）",
                                 showSettings: true)
                 } else if items(from: store).isEmpty && store.states.isEmpty {
                     placeholder(title: store.status.text,

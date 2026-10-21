@@ -8,7 +8,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     private var settings: StickerSettings
     private var settingsWindow: NSWindow?
     private var tileWindow: NSWindow?
-    private var rightClickMenu: NSMenu!
     private var localMonitor: Any?
     private var moveObserver: NSObjectProtocol?
     private var resizeObserver: NSObjectProtocol?
@@ -29,7 +28,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildMainMenu()
         buildStatusItem()
-        rightClickMenu = buildMenu()
 
         panel = StickerPanel(settings: settings)
         panel.onFrameChanged = { [weak self] in self?.saveFrame() }
@@ -138,12 +136,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
     // MARK: - 右键菜单
 
+    /// 贴纸上右键什么都不弹：所有操作都在菜单栏那个图标里。
+    /// 但事件还是吞掉（返回 nil），否则嵌网页时会弹出网页自带的右键菜单。
     private func installRightClickMonitor() {
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: .rightMouseDown) { [weak self] event in
             guard let self = self, event.window === self.panel else { return event }
-            // 返回 nil：吞掉事件，免得弹出网页自带的右键菜单
-            let point = self.panel.contentView!.convert(event.locationInWindow, from: nil)
-            self.rightClickMenu.popUp(positioning: nil, at: point, in: self.panel.contentView)
             return nil
         }
     }
