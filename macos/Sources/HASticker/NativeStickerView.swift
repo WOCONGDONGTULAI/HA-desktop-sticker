@@ -283,8 +283,14 @@ final class NativeContentView: NSView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    private func rebuild() {
+    private func rebuild(forceNew: Bool = false) {
         let root = AnyView(NativeStickerView(store: store, settings: settings))
+        if forceNew {
+            // 丢掉旧 hosting view（连同它内部的旧图层），别去改 rootView —— 改 rootView 会复用
+            // 旧图层，残留的磁贴图层会一直叠在新画面上面，看起来就是一块没擦干净的印记
+            hosting?.removeFromSuperview()
+            hosting = nil
+        }
         if let h = hosting {
             h.rootView = root
         } else {
@@ -295,6 +301,11 @@ final class NativeContentView: NSView {
             hosting = h
         }
         layer?.cornerRadius = CGFloat(settings.cornerRadius)
+    }
+
+    /// 整个内容层推倒重建（修残影用）
+    func refresh() {
+        rebuild(forceNew: true)
     }
 
     /// 配置变了就重连（configure 内部会比对 base+token，没变不会重连）
@@ -314,7 +325,7 @@ final class NativeContentView: NSView {
 
     func update(settings newSettings: StickerSettings) {
         settings = newSettings
-        rebuild()
+        rebuild(forceNew: true)
         syncStore()
     }
 }

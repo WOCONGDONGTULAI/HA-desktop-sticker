@@ -15,7 +15,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     private var appearanceObserver: NSObjectProtocol?
 
     override init() {
-        self.settings = StickerSettings.load()
+        var s = StickerSettings.load()
+        // 老配置里可能存着 0.5 / 0.7，这种透明度必然留残影，读进来就抬到安全值
+        let safe = StickerPanel.safeAlpha(s.opacity)
+        if abs(safe - s.opacity) > 0.001 {
+            s.opacity = safe
+            s.save()
+        }
+        self.settings = s
         super.init()
     }
 
@@ -150,6 +157,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         m.addItem(withTitle: "设置…", action: #selector(openSettings), keyEquivalent: ",")
         m.addItem(withTitle: "编辑贴纸内容…", action: #selector(openTileEditor), keyEquivalent: "e")
         m.addItem(withTitle: "重新加载", action: #selector(reloadPage), keyEquivalent: "r")
+        m.addItem(withTitle: "刷新显示（出现残影时点这个）", action: #selector(fixGhosting), keyEquivalent: "R")
         m.addItem(withTitle: "粘贴到页面", action: #selector(pasteToPage), keyEquivalent: "")
         m.addItem(withTitle: "在浏览器里打开 HA", action: #selector(openInBrowser), keyEquivalent: "")
         m.addItem(.separator())
@@ -178,7 +186,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
         let opacityItem = NSMenuItem(title: "透明度", action: nil, keyEquivalent: "")
         let opacityMenu = NSMenu()
-        for value in [0.5, 0.7, 0.85, 1.0] {
+        // 不再提供 0.5 / 0.7 这种低透明度：窗口太透时桌面上会留下旧画面残影
+        for value in [0.94, 0.97, 1.0] {
             let item = NSMenuItem(title: "\(Int(value * 100))%", action: #selector(setOpacity(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = value
@@ -243,12 +252,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         if panel.isVisible {
             panel.orderOut(nil)
         } else {
+            // 重新出现前先重建内容，避免把上次留下的旧画面一起带回来
+            panel.refreshDisplay()
             panel.orderFrontRegardless()
         }
     }
 
     @objc private func reloadPage() {
         panel.reload()
+    }
+
+    /// 贴纸上留了「没擦干净的印记」时用：把内容层重建、窗口缓存丢掉
+    @objc private func fixGhosting() {
+        panel.forceRedraw()
     }
 
     /// Cmd+V 万一还是不通，右键里这一条直接走剪贴板 → 网页输入框
@@ -416,6 +432,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             settingsWindow = nil
         } else if win === tileWindow {
             tileWindow = nil
+        } else {
+            return
+        }
+        // 设置 / 编辑器窗口曾经盖在贴纸上，关掉后贴纸这块画面容易留下旧窗口的印记，
+        // 等关闭动画结束再整体重建一次
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            self?.panel.forceRedraw()
         }
     }
 

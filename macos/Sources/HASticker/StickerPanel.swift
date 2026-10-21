@@ -60,13 +60,21 @@ final class StickerPanel: NSPanel {
             container.addSubview(v)
         }
 
-        self.alphaValue = settings.opacity
+        // 注意：窗口透明度过低时，桌面层（-2147483602）上会留下上一帧窗口的快照残影 ——
+        // 半透明窗口只是把旧快照和新画面叠在一起，看起来就像「鼠标拖出来的选框没擦掉」。
+        // 所以这里兜到 0.94 以上：仍然有一点点透，但不会有可见的残影。
+        self.alphaValue = Self.safeAlpha(settings.opacity)
         self.minSize = NSSize(width: 160, height: 160)
         applySource()
         applyMode(settings.mode)
         applyFrame()
         applyAppearance()
         applyAdjustUI()
+    }
+
+    /// 半透明 + 桌面层级 = 旧画面残留。低于 0.94 就让残影肉眼可见，这里统一兜底
+    static func safeAlpha(_ value: Double) -> Double {
+        min(1.0, max(0.94, value))
     }
 
     /// 网页 / 原生面板二选一
@@ -265,7 +273,7 @@ final class StickerPanel: NSPanel {
         let sourceChanged = newSettings.source != settings.source
         settings = newSettings
 
-        alphaValue = settings.opacity
+        alphaValue = StickerPanel.safeAlpha(settings.opacity)
         container.layer?.cornerRadius = CGFloat(settings.cornerRadius)
         web.update(settings: settings)
         native.update(settings: settings)
@@ -284,6 +292,28 @@ final class StickerPanel: NSPanel {
     }
 
     var currentSettings: StickerSettings { settings }
+
+    // MARK: - 残影修复
+
+    /// 把内容层整个重建一遍 + 让系统重算窗口阴影。
+    /// SwiftUI 装在 NSHostingView 里时，改 rootView 只会「复用」旧图层，
+    /// 旧的磁贴图层有时会留在原处继续合成，看起来就是一块没擦干净的印记。
+    func refreshDisplay() {
+        native.refresh()
+        invalidateShadow()
+        container.layer?.setNeedsDisplay()
+        container.needsDisplay = true
+        contentView?.displayIfNeeded()
+    }
+
+    /// 更彻底：把窗口从屏幕摘掉再放回来。系统会丢弃这块窗口的缓存画面。
+    /// 会有极短的一下闪烁，所以只在「用户主动点修复」或关掉子窗口时用。
+    func forceRedraw() {
+        let wasVisible = isVisible
+        if wasVisible { orderOut(nil) }
+        refreshDisplay()
+        if wasVisible { orderFrontRegardless() }
+    }
 }
 
 /// 顶部一条半透明的拖动条。它是贴纸窗口里真正的 NSView，
