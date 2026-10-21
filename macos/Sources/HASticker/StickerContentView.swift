@@ -5,7 +5,6 @@ import WebKit
 final class StickerContentView: NSView, WKNavigationDelegate {
     private(set) var webView: WKWebView!
     private var settings: StickerSettings
-    private var statusLabel: NSTextField?
 
     init(settings: StickerSettings) {
         self.settings = settings
@@ -52,15 +51,36 @@ final class StickerContentView: NSView, WKNavigationDelegate {
 
     func load() {
         guard let s = settings.normalizedURLString(), let url = URL(string: s) else {
-            showStatus("还没设置 HA 地址\n右键贴纸或点菜单栏图标 → 设置")
+            showErrorPage(title: "还没设置 HA 地址",
+                          detail: "右键贴纸，或点菜单栏图标 → 设置",
+                          retryURL: nil)
             return
         }
-        hideStatus()
         webView.load(URLRequest(url: url, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 30))
     }
 
+    /// 用自己的不透明错误页替掉白屏/404 页，免得桌面图标透出来像坏掉了
+    private func showErrorPage(title: String, detail: String, retryURL: String?) {
+        let safeDetail = detail.replacingOccurrences(of: "\n", with: "<br>")
+        let retry = retryURL == nil ? "" :
+            "<a href=\"\(retryURL!)\" style=\"display:inline-block;margin-top:16px;padding:6px 16px;" +
+            "border-radius:6px;background:#3a3a3c;color:#e8e8e8;text-decoration:none;font-size:12px\">重试</a>"
+        let html = """
+        <!doctype html><html><head><meta charset="utf-8">
+        <style>
+        html,body{margin:0;height:100%;background:#1c1c1e;}
+        .wrap{height:100%;display:flex;align-items:center;justify-content:center;
+              font-family:-apple-system,"PingFang SC",sans-serif;text-align:center;color:#d8d8d8;}
+        .t{font-size:14px;margin-bottom:10px;}
+        .d{font-size:12px;line-height:1.8;color:#8a8a8e;word-break:break-all;padding:0 18px;}
+        </style></head><body><div class="wrap"><div>
+        <div class="t">\(title)</div><div class="d">\(safeDetail)</div>\(retry)
+        </div></div></body></html>
+        """
+        webView.loadHTMLString(html, baseURL: nil)
+    }
+
     func reload() {
-        hideStatus()
         if webView.url == nil {
             load()
         } else {
@@ -77,37 +97,34 @@ final class StickerContentView: NSView, WKNavigationDelegate {
         }
     }
 
-    // MARK: - 加载失败提示
-
-    private func showStatus(_ text: String) {
-        if statusLabel == nil {
-            let label = NSTextField(wrappingLabelWithString: text)
-            label.alignment = .center
-            label.textColor = .secondaryLabelColor
-            label.font = NSFont.systemFont(ofSize: 13)
-            label.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(label)
-            NSLayoutConstraint.activate([
-                label.centerXAnchor.constraint(equalTo: centerXAnchor),
-                label.centerYAnchor.constraint(equalTo: centerYAnchor),
-                label.widthAnchor.constraint(equalTo: widthAnchor, constant: -32)
-            ])
-            statusLabel = label
-        }
-        statusLabel?.stringValue = text
-        statusLabel?.isHidden = false
-    }
-
-    private func hideStatus() {
-        statusLabel?.isHidden = true
-    }
-
     // MARK: - WKNavigationDelegate
+
+    /// 先看 HTTP 状态码：404 基本就是仪表盘路径不对，直接给个能看懂的错误页
+    func webView(_ webView: WKWebView,
+                 decidePolicyFor navigationResponse: WKNavigationResponse,
+                 decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+        if navigationResponse.isForMainFrame,
+           let http = navigationResponse.response as? HTTPURLResponse,
+           http.statusCode >= 400 {
+            decisionHandler(.cancel)
+
+            var detail = "HA 返回 HTTP \(http.statusCode)\n\(settings.haURL)"
+            if http.statusCode == 404 {
+                detail = "仪表盘路径不存在\n\(settings.haURL)\n\n在 HA 里建好这个仪表盘，\n或者右键 → 设置 换个地址"
+            }
+            let retry = settings.normalizedURLString()
+            showErrorPage(title: "打不开仪表盘", detail: detail, retryURL: retry)
+            return
+        }
+        decisionHandler(.allow)
+    }
 
     func webView(_ webView: WKWebView,
                  didFail navigation: WKNavigation!,
                  withError error: Error) {
-        showStatus("打不开 HA\n\(error.localizedDescription)")
+        showErrorPage(title: "打不开 HA",
+                      detail: error.localizedDescription,
+                      retryURL: settings.normalizedURLString())
     }
 
     func webView(_ webView: WKWebView,
@@ -118,7 +135,9 @@ final class StickerContentView: NSView, WKNavigationDelegate {
         if nsError.code == NSURLErrorCannotFindHost ||
             nsError.code == NSURLErrorCannotConnectToHost ||
             nsError.code == NSURLErrorTimedOut {
-            showStatus("打不开 HA\n检查地址或网络：\n\(settings.haURL)")
+            showErrorPage(title: "连不上 HA",
+                          detail: "检查地址和网络\n\(settings.haURL)",
+                          retryURL: settings.normalizedURLString())
         }
     }
 }
