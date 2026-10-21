@@ -35,7 +35,7 @@ final class StickerContentView: NSView, WKNavigationDelegate {
         // 拖动贴纸时不希望网页里的文字被框选
         config.userContentController = WKUserContentController()
 
-        let wv = WKWebView(frame: bounds, configuration: config)
+        let wv = StickerWebView(frame: bounds, configuration: config)
         wv.autoresizingMask = [.width, .height]
         wv.navigationDelegate = self
         wv.allowsBackForwardNavigationGestures = false
@@ -190,4 +190,12 @@ final class StickerContentView: NSView, WKNavigationDelegate {
                           retryURL: settings.normalizedURLString())
         }
     }
+}
+
+/// WKWebView 的子类，只为一件事：接受「第一次点击」。
+/// NSView.acceptsFirstMouse 默认 false —— app 未激活时，第一次点击只被用来
+/// 激活窗口、不会传给视图。贴纸平时就是未激活状态，那样第一次点开关会没反应，
+/// 必须点两下才生效。这里改成 true。
+final class StickerWebView: WKWebView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }

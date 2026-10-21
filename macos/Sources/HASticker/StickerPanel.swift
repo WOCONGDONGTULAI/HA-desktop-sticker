@@ -168,9 +168,14 @@ final class StickerPanel: NSPanel {
     func applyMode(_ mode: StickerMode) {
         switch mode {
         case .desktop:
-            // 放到桌面图标之上、普通窗口之下 —— 这就是 macOS 上的「贴在桌面」
-            let desktopLevel = Int(CGWindowLevelForKey(.desktopWindow))
-            level = NSWindow.Level(rawValue: desktopLevel + 1)
+            // 关键：必须站在「桌面图标层」之上，否则点不到。
+            // Finder 的桌面图标是一块铺满全屏的透明窗口（-2147483603），
+            // 而 macOS 的点击命中只看最上层窗口、不管透不透明，
+            // 贴在 desktopWindow+1 会被它整块盖住 —— 开关点不动、也拖不动。
+            // 抬到 icon 层 +1 之后：图标仍然在下面（会被贴纸遮住），
+            // 但它依然远低于普通窗口(0)，所以应用窗口照样能盖住贴纸。
+            let iconLevel = Int(CGWindowLevelForKey(.desktopIconWindow))
+            level = NSWindow.Level(rawValue: iconLevel + 1)
         case .floating:
             level = .floating
         case .normal:
