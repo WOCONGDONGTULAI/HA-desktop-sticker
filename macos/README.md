@@ -2,7 +2,17 @@
 
 无边框、圆角的桌面小窗，里面是 Home Assistant 仪表盘。不进 Dock、不进 `Command+Tab`，只在菜单栏留一个图标。
 
-## 装
+## 装（两种方式，挑一个）
+
+### A. 直接下载现成的 app
+
+去 [Releases](https://github.com/WOCONGDONGTULAI/HA-desktop-sticker/releases) 下载
+`HASticker.app.zip`，解压后把 `HASticker.app` 拖进「应用程序」文件夹，双击运行。
+
+首次打开如果提示「无法打开，因为它来自身份不明的开发者」：右键 app → 「打开」→ 确认
+（自己编译的 app 没有苹果开发者签名，这是正常现象，只第一次要这样）。
+
+### B. 自己编译
 
 ```bash
 cd macos
@@ -10,11 +20,12 @@ chmod +x make-app.sh
 ./make-app.sh
 ```
 
-产出 `macos/HASticker.app`，拖进「应用程序」文件夹，双击运行。
+产出 `macos/HASticker.app`。脚本优先用 SwiftPM；机器上 SwiftPM 不完整时会自动退回 `swiftc` 直接编译。
 
 > 第一次运行可能被 Gatekeeper 拦：右键 app → 「打开」→ 确认。脚本已经帮你清过 quarantine 标记。
 
-要求 macOS 13+，装过 Xcode 命令行工具（`xcode-select --install`）。
+要求 macOS 12+（Apple Silicon 与 Intel 通用，现成 app 是 arm64 版；Intel 机器用方式 B 自己编译）。
+编译需要 Xcode 命令行工具（`xcode-select --install`）。
 
 ## 用
 

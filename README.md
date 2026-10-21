@@ -25,7 +25,7 @@ HA 里 `设置 → 仪表盘 → 新增仪表盘`，标题随便（比如「贴�
 
 | 平台 | 位置 | 说明 |
 | --- | --- | --- |
-| macOS | `macos/README.md` | `./make-app.sh` 直接产出 `HASticker.app`，拖进应用程序文件夹 |
+| macOS | `macos/README.md` | 现成 app 直接下：[Releases](../../releases) 里的 `HASticker.app.zip`；或 `./make-app.sh` 自己编译 |
 | Windows | `windows/README.md` | `build.bat` 产出单文件 exe，或 `run.bat` 跑源码 |
 
 ### 3. 填地址
