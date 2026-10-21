@@ -74,8 +74,16 @@ struct SettingsView: View {
                 ForEach(StickerAppearance.allCases) { Text($0.displayName).tag($0) }
             }
 
-            Toggle("锁定位置（不能拖动）", isOn: $lockPosition)
-                .help("取消勾选后，在贴纸任意位置按住左键拖动即可移动")
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle(isOn: $lockPosition) {
+                    Text(lockPosition ? "锁定（固定位置与大小）" : "调整模式（可拖动、可缩放）")
+                }
+                Text(lockPosition
+                     ? "已锁定：拖不动也缩放不了，只能点里面的开关。取消勾选回到调整模式。"
+                     : "调整模式下贴纸任意位置按住左键即可拖动，顶部会出现拖动条，拖边缘可缩放。调好后勾选锁定。")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
 
             HStack {
                 Button("取消") { onCancel() }

@@ -47,15 +47,28 @@ final class StickerPanel: NSPanel {
         applyMode(settings.mode)
         applyFrame()
         applyAppearance()
-        updateDragBar()
+        applyAdjustUI()
     }
 
-    // MARK: - 拖动条（保底方案：万一网页把事件吃光，还能靠顶部这条拖动）
+    // MARK: - 调整模式 / 锁定
+    // 未锁定 = 调整模式：能拖能缩放，顶部显示拖动条 + 描边提示
+    // 锁定   = 固定住：既不能拖也不能缩放，提示全部隐藏
 
     private var dragBar: DragBarView?
 
-    private func updateDragBar() {
-        if settings.showDragBar {
+    private func applyAdjustUI() {
+        let adjusting = !settings.lockPosition
+
+        // 缩放：锁定后直接把 resizable 从 styleMask 摘掉，边缘就拖不动了
+        if adjusting {
+            styleMask.insert(.resizable)
+        } else {
+            styleMask.remove(.resizable)
+        }
+        isMovableByWindowBackground = adjusting
+
+        // 拖动条：调整模式下自动出现，一眼看出「现在能拖」
+        if adjusting {
             if dragBar == nil {
                 let bar = DragBarView()
                 bar.translatesAutoresizingMaskIntoConstraints = false
@@ -76,6 +89,10 @@ final class StickerPanel: NSPanel {
             dragBar?.removeFromSuperview()
             dragBar = nil
         }
+
+        // 描边提示：调整模式下一圈细边，锁定后消失
+        content.layer?.borderWidth = adjusting ? 1.5 : 0
+        content.layer?.borderColor = NSColor.controlAccentColor.cgColor
     }
 
     /// 允许在需要输入时（比如 HA 登录框）自动拿到键盘焦点
@@ -207,7 +224,7 @@ final class StickerPanel: NSPanel {
         applyMode(settings.mode)
         applyFrame()
         applyAppearance()
-        updateDragBar()
+        applyAdjustUI()
         if appearanceChanged {
             content.reload()
         }

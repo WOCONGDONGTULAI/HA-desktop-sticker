@@ -179,13 +179,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         m.setSubmenu(lookMenu, for: lookItem)
         m.addItem(lookItem)
 
-        let lockItem = NSMenuItem(title: "锁定位置", action: #selector(toggleLock), keyEquivalent: "")
+        // 不勾选 = 调整模式（能拖能缩放）；勾选 = 锁定，位置和大小都固定
+        let lockItem = NSMenuItem(title: "锁定（固定位置与大小）", action: #selector(toggleLock), keyEquivalent: "")
         lockItem.representedObject = "lock"
         m.addItem(lockItem)
-
-        let barItem = NSMenuItem(title: "显示顶部拖动条", action: #selector(toggleDragBar), keyEquivalent: "")
-        barItem.representedObject = "dragbar"
-        m.addItem(barItem)
 
         m.addItem(.separator())
         m.addItem(withTitle: "清除登录状态", action: #selector(clearLogin), keyEquivalent: "")
@@ -214,9 +211,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         }
         if let lock = menu.items.first(where: { ($0.representedObject as? String) == "lock" }) {
             lock.state = settings.lockPosition ? .on : .off
-        }
-        if let bar = menu.items.first(where: { ($0.representedObject as? String) == "dragbar" }) {
-            bar.state = settings.showDragBar ? .on : .off
+            lock.title = settings.lockPosition ? "已锁定（取消勾选=调整模式）" : "锁定（固定位置与大小）"
         }
     }
 
@@ -282,13 +277,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         settings.lockPosition.toggle()
         settings.save()
         panel.isMovableByWindowBackground = !settings.lockPosition
-    }
-
-    /// 网页上面实在拖不动时的保底手段：在贴纸顶部加一条专用的拖动条
-    @objc private func toggleDragBar() {
-        settings.showDragBar.toggle()
-        settings.save()
-        panel.update(settings: settings)
     }
 
     @objc private func clearLogin() {
