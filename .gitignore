@@ -1,0 +1,23 @@
+# macOS
+.build/
+.swiftpm/
+Packages/
+xcuserdata/
+*.xcodeproj/project.xcworkspace/
+*.xcworkspace/
+.DS_Store
+HASticker/HASticker.app/
+*.app/
+
+# Windows
+bin/
+obj/
+.vs/
+publish/
+*.user
+*.suo
+packages/
+
+# 运行时生成的个人配置（含内网地址，不入库）
+sticker.config.json
+windows/sticker.config.json

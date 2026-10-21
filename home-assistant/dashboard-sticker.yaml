@@ -1,0 +1,103 @@
+# 贴纸专用仪表盘
+# 用法：HA → 设置 → 仪表盘 → 新增 → 右上角「原始配置编辑器」→ 整段粘贴覆盖
+# 然后把下面的实体 id（light.xxx / switch.xxx / sensor.xxx）全换成你自己的
+# 目标：一屏能装下、按钮够大、手指/鼠标一点就中
+
+title: 贴纸
+views:
+  - title: 贴纸
+    path: sticker
+    icon: mdi:sticker
+    # panel: true 会在侧边栏单独显示这个视图
+    panel: true
+    cards:
+      # ---------- 1. 常用开关（2 列大按钮，点一下就切）----------
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+          - type: button
+            name: 客厅灯
+            icon: mdi:ceiling-light
+            tap_action:
+              action: toggle
+            entity: light.living_room
+          - type: button
+            name: 卧室灯
+            icon: mdi:bed-lamp
+            tap_action:
+              action: toggle
+            entity: light.bedroom
+          - type: button
+            name: 台灯
+            icon: mdi:lamp
+            tap_action:
+              action: toggle
+            entity: switch.desk_lamp
+          - type: button
+            name: 空调
+            icon: mdi:air-conditioner
+            tap_action:
+              action: toggle
+            entity: climate.living_room
+
+      # ---------- 2. 环境数据（一行三个，只显示数字）----------
+      - type: glance
+        title: 家里现在
+        show_state: true
+        columns: 3
+        entities:
+          - entity: sensor.living_room_temperature
+            name: 温度
+          - entity: sensor.living_room_humidity
+            name: 湿度
+          - entity: sensor.outdoor_temperature
+            name: 室外
+
+      # ---------- 3. 场景 / 一键动作 ----------
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+          - type: button
+            name: 回家
+            icon: mdi:home-import-outline
+            tap_action:
+              action: call-service
+              service: script.turn_on
+              service_data:
+                entity_id: script.coming_home
+          - type: button
+            name: 离家
+            icon: mdi:home-export-outline
+            tap_action:
+              action: call-service
+              service: script.turn_on
+              service_data:
+                entity_id: script.leaving_home
+          - type: button
+            name: 全部关灯
+            icon: mdi:lightbulb-off
+            tap_action:
+              action: call-service
+              service: light.turn_off
+              service_data:
+                entity_id: all
+          - type: button
+            name: 晚安
+            icon: mdi:weather-night
+            tap_action:
+              action: call-service
+              service: script.turn_on
+              service_data:
+                entity_id: script.good_night
+
+      # ---------- 4. 需要精细调的灯（滑条）----------
+      - type: entities
+        title: 亮度
+        show_header_toggle: false
+        entities:
+          - entity: light.living_room
+            name: 客厅亮度
+          - entity: light.bedroom
+            name: 卧室亮度

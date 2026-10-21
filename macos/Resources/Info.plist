@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>HASticker</string>
+	<key>CFBundleDisplayName</key>
+	<string>HA 贴纸</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.congdongtulai.HASticker</string>
+	<key>CFBundleExecutable</key>
+	<string>HASticker</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1</string>
+	<key>CFBundleVersion</key>
+	<key>1</key>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+	<!-- 不进 Dock、不进 Command+Tab，只在菜单栏留图标 -->
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<!-- 内网 HA 基本都是 http://，ATS 必须放开，否则白屏 -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>需要连接局域网里的 Home Assistant</string>
+</dict>
+</plist>

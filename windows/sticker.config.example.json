@@ -1,0 +1,13 @@
+{
+  "HaUrl": "http://homeassistant.local:8123/sticker?kiosk",
+  "Width": 320,
+  "Height": 480,
+  "X": -1,
+  "Y": -1,
+  "Opacity": 1.0,
+  "Zoom": 1.0,
+  "CornerRadius": 10,
+  "Mode": "Desktop",
+  "LockPosition": false,
+  "ShowDragBar": true
+}
