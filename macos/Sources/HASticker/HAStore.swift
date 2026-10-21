@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import AppKit
 
 /// 一个实体的快照。只留贴纸用得上的字段，避免把整个 attributes 拖着走
 struct HAState: Identifiable, Equatable {
@@ -39,6 +40,13 @@ struct HAState: Identifiable, Equatable {
         deviceClass = a["device_class"] as? String ?? ""
         minTemp = a["min_temp"] as? Double
         maxTemp = a["max_temp"] as? Double
+    }
+}
+
+extension HAState {
+    /// 自动猜出来的图标（没手改过就用这个）
+    var autoSymbol: String {
+        guessSymbol(domain: domain, name: name, state: state, entityID: entityID)
     }
 }
 
@@ -283,6 +291,80 @@ final class HAStore: ObservableObject {
     }
 
     private enum HAError: Error { case protocolError }
+}
+
+/// 「开着」的几种状态取值（不止 on）
+func isOnState(_ state: String) -> Bool {
+    ["on", "open", "playing", "heat", "cool", "heat_cool", "auto", "dry", "fan_only", "cleaning"].contains(state)
+}
+
+/// 缓存 SF Symbol 是否可用：不同 macOS 版本带的 SF Symbols 版本不一样，
+/// 名字不存在时 SwiftUI 会画不出来（空白），所以先探一下，不行就退回首选项。
+private var symbolAvailability: [String: Bool] = [:]
+
+func symbolExists(_ name: String) -> Bool {
+    if let cached = symbolAvailability[name] { return cached }
+    let ok = NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil
+    symbolAvailability[name] = ok
+    return ok
+}
+
+/// 按 domain + 名字（中英文都看）+ 当前状态 猜一个 SF Symbol。
+/// HA 用的是 Material Design Icons，macOS 上没法直接用，只能挑相近的替代。
+/// 原生磁贴和内容编辑器共用这一套，改一处两边跟着变。
+func guessSymbol(domain: String, name: String, state: String, entityID: String = "") -> String {
+    let hay = (name + " " + entityID).lowercased()
+
+    func pick(_ first: String, _ fallback: String = "power") -> String {
+        symbolExists(first) ? first : (symbolExists(fallback) ? fallback : "power")
+    }
+
+    switch domain {
+    case "light":
+        return isOnState(state) ? pick("lightbulb.fill") : pick("lightbulb")
+    case "fan":
+        if hay.contains("净化") || hay.contains("purifier") { return pick("wind") }
+        return pick("fan.blades", "wind")
+    case "climate":
+        if hay.contains("地暖") || hay.contains("heater") { return pick("flame.fill") }
+        return isOnState(state) ? pick("wind") : pick("snowflake")
+    case "input_boolean":
+        if hay.contains("充电") || hay.contains("charg") { return pick("bolt.fill") }
+        if hay.contains("空调") || hay.contains("air") { return pick("snowflake") }
+        return pick("switch.2")
+    case "automation", "script", "button":
+        return pick("bolt.fill")
+    case "sensor":
+        if hay.contains("湿度") || hay.contains("humidity") { return pick("drop") }
+        if hay.contains("温度") || hay.contains("temperature") { return pick("thermometer") }
+        if hay.contains("pm2") || hay.contains("空气") || hay.contains("air quality") { return pick("wind") }
+        if hay.contains("电量") || hay.contains("battery") { return pick("battery.100") }
+        if hay.contains(" feeder") || hay.contains("喂食") { return pick("pawprint.fill") }
+        return pick("gauge")
+    case "binary_sensor":
+        if hay.contains("门") || hay.contains("door") { return pick("door.left.hand.closed") }
+        if hay.contains("窗") || hay.contains("window") { return pick("rectangle.on.rectangle") }
+        if hay.contains("人在") || hay.contains("presence") || hay.contains("occupancy") { return pick("person.fill") }
+        return pick("circle.dashed")
+    case "person", "device_tracker":
+        return pick("iphone")
+    case "media_player":
+        return pick("speaker.wave.2.fill")
+    case "weather":
+        return pick("cloud.sun.fill")
+    default:
+        if hay.contains("暖") || hay.contains("heater") || hay.contains("heat") { return pick("flame.fill") }
+        if hay.contains("热水") || hay.contains("water") { return pick("drop.fill") }
+        if hay.contains("电脑") || hay.contains("pc") || hay.contains("computer") { return pick("desktopcomputer") }
+        if hay.contains("喂食") || hay.contains("feeder") { return pick("pawprint.fill") }
+        if hay.contains("闪光") || hay.contains("camera") || hay.contains("flash") { return pick("camera.fill") }
+        if hay.contains("充电") || hay.contains("charg") { return pick("bolt.fill") }
+        if hay.contains("净化") || hay.contains("purif") { return pick("wind") }
+        if hay.contains("灯") || hay.contains("light") || hay.contains("牌匾") { return pick("lightbulb.fill") }
+        if hay.contains("空调") || hay.contains("air") { return pick("snowflake") }
+        if hay.contains("锁") || hay.contains("lock") { return pick("lock.fill") }
+        return pick("power")
+    }
 }
 
 // MARK: - 预览用的假数据

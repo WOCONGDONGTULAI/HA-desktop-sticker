@@ -44,8 +44,14 @@ struct NativeStickerView: View {
             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                 HStack(spacing: gap) {
                     ForEach(row) { s in
-                        TileView(state: s, icon: symbol(for: s), on: s.isOn, readable: row.count > 1) {
-                            store.toggle(s)
+                        TileView(state: s,
+                                 title: settings.title(for: s.entityID, fallback: s.name),
+                                 icon: settings.symbol(for: s.entityID, fallback: s.autoSymbol),
+                                 on: s.isOn,
+                                 enabled: s.isToggleable,
+                                 readable: row.count > 1) {
+                            // 传感器这类点不动的实体就别调 HA 服务了，省得报 400
+                            if s.isToggleable { store.toggle(s) }
                         }
                     }
                     if row.count < cols {
@@ -153,36 +159,16 @@ struct NativeStickerView: View {
         }
     }
 
-    /// 按名字和域猜一个 SF Symbol（HA 的 mdi 图标没法直接用）
-    private func symbol(for s: HAState) -> String {
-        let n = s.name.lowercased()
-        switch s.domain {
-        case "climate":
-            return s.isOn ? "wind" : "snowflake"
-        case "fan":
-            return "wind"
-        case "light":
-            return "lightbulb.fill"
-        case "input_boolean":
-            return "switch.2"
-        default:
-            if n.contains("暖") || n.contains("heater") || n.contains("heat") { return "flame.fill" }
-            if n.contains("热水") || n.contains("water") { return "drop.fill" }
-            if n.contains("电脑") || n.contains("pc") || n.contains("computer") { return "desktopcomputer" }
-            if n.contains("闪光") || n.contains("camera") || n.contains("flash") { return "camera.fill" }
-            if n.contains("充电") || n.contains("charg") { return "bolt.fill" }
-            if n.contains("净化") || n.contains("purif") { return "wind" }
-            if n.contains("灯") || n.contains("light") || n.contains("牌匾") { return "lightbulb.fill" }
-            return "power"
-        }
-    }
+    /// 图标自己不用挑：`HAState.autoSymbol` 里统一猜，用户手选过的由 StickerSettings 覆盖
 }
 
 /// 单个磁贴：图标 + 名字 + 状态，点一下切换
 private struct TileView: View {
     let state: HAState
-    let icon: String
+    let title: String           // 标题：可能被用户在编辑器里改过
+    let icon: String            // SF Symbol：可能手选过
     let on: Bool
+    let enabled: Bool           // 传感器之类不能切的就只是展示
     let readable: Bool          // 只有一个磁贴时不压缩文字
     let action: () -> Void
 
@@ -192,7 +178,7 @@ private struct TileView: View {
                 Image(systemName: icon)
                     .font(.system(size: 22, weight: .medium))
                     .foregroundColor(on ? .accentColor : Color.secondary.opacity(0.75))
-                Text(state.name)
+                Text(title)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.primary)
                     .lineLimit(1)
@@ -216,6 +202,7 @@ private struct TileView: View {
             .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(TileButtonStyle())
+        .disabled(!enabled)
     }
 
     private var detail: String {

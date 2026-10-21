@@ -17,13 +17,16 @@ struct SettingsView: View {
     private let original: StickerSettings
     private let onSave: (StickerSettings) -> Void
     private let onCancel: () -> Void
+    private let onEditTiles: () -> Void
 
     init(settings: StickerSettings,
          onSave: @escaping (StickerSettings) -> Void,
-         onCancel: @escaping () -> Void) {
+         onCancel: @escaping () -> Void,
+         onEditTiles: @escaping () -> Void = {}) {
         self.original = settings
         self.onSave = onSave
         self.onCancel = onCancel
+        self.onEditTiles = onEditTiles
         _source = State(initialValue: settings.source)
         _urlText = State(initialValue: settings.haURL.isEmpty ? "http://192.168.5.18:8123" : settings.haURL)
         _token = State(initialValue: settings.token)
@@ -105,14 +108,19 @@ struct SettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("显示哪些实体（可留空）").font(.subheadline)
                     TextField("留空 = 自动显示所有开关、灯、风扇、空调", text: $entities)
                         .textFieldStyle(.roundedBorder)
-                    Text("想自己排顺序就填 entity_id，逗号分隔，比如：switch.pzg_0002_069f_switch, light.yeelight")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("排顺序、改名字、换图标都用可视化编辑器，不用手打这一行。")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 4)
+                        Button("编辑贴纸内容…", action: onEditTiles)
+                            .controlSize(.small)
+                    }
                 }
             }
         }

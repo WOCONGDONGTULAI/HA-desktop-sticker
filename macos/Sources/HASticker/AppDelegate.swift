@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     private var panel: StickerPanel!
     private var settings: StickerSettings
     private var settingsWindow: NSWindow?
+    private var tileWindow: NSWindow?
     private var rightClickMenu: NSMenu!
     private var localMonitor: Any?
     private var moveObserver: NSObjectProtocol?
@@ -147,6 +148,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         m.addItem(withTitle: "显示 / 隐藏贴纸", action: #selector(toggleVisible), keyEquivalent: "")
         m.addItem(.separator())
         m.addItem(withTitle: "设置…", action: #selector(openSettings), keyEquivalent: ",")
+        m.addItem(withTitle: "编辑贴纸内容…", action: #selector(openTileEditor), keyEquivalent: "e")
         m.addItem(withTitle: "重新加载", action: #selector(reloadPage), keyEquivalent: "r")
         m.addItem(withTitle: "粘贴到页面", action: #selector(pasteToPage), keyEquivalent: "")
         m.addItem(withTitle: "在浏览器里打开 HA", action: #selector(openInBrowser), keyEquivalent: "")
@@ -337,7 +339,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
                 self.panel.load()
                 self.closeSettings()
             },
-            onCancel: { [weak self] in self?.closeSettings() }
+            onCancel: { [weak self] in self?.closeSettings() },
+            // 编辑器会自己改 entities/icons/names，同时开着会让设置窗口里的旧快照把它冲掉
+            onEditTiles: { [weak self] in
+                guard let self = self else { return }
+                self.closeSettings()
+                self.openTileEditor()
+            }
         )
 
         let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 540, height: 680),
@@ -360,9 +368,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         settingsWindow = nil
     }
 
+    // MARK: - 贴纸内容编辑器
+
+    @objc func openTileEditor() {
+        if let win = tileWindow {
+            NSApp.activate(ignoringOtherApps: true)
+            win.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        let view = TileEditorView(
+            settings: settings,
+            onSave: { [weak self] newSettings in
+                guard let self = self else { return }
+                self.settings = newSettings
+                newSettings.save()
+                // Reconfigure 里会比对 base + token，没变就不会重连，只是重画磁贴
+                self.panel.update(settings: newSettings)
+                self.closeTileEditor()
+            },
+            onCancel: { [weak self] in self?.closeTileEditor() }
+        )
+
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 700, height: 700),
+                           styleMask: [.titled, .closable],
+                           backing: .buffered,
+                           defer: false)
+        win.title = "编辑贴纸内容"
+        win.contentView = NSHostingView(rootView: view)
+        win.isReleasedWhenClosed = false
+        win.delegate = self
+        win.center()
+        tileWindow = win
+
+        NSApp.activate(ignoringOtherApps: true)
+        win.makeKeyAndOrderFront(nil)
+    }
+
+    private func closeTileEditor() {
+        tileWindow?.close()
+        tileWindow = nil
+    }
+
     func windowWillClose(_ notification: Notification) {
-        if (notification.object as? NSWindow) === settingsWindow {
+        guard let win = notification.object as? NSWindow else { return }
+        if win === settingsWindow {
             settingsWindow = nil
+        } else if win === tileWindow {
+            tileWindow = nil
         }
     }
 

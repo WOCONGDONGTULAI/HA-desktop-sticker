@@ -74,6 +74,8 @@ struct StickerSettings: Codable {
     var haURL: String = ""
     var token: String = ""            // HA 长期访问令牌（原生面板用）
     var entities: String = ""         // 逗号分隔的 entity_id；留空 = 自动挑
+    var icons: [String: String] = [:]  // entity_id -> SF Symbol 名字（手改过的）
+    var names: [String: String] = [:]  // entity_id -> 磁贴标题（手改过的）
     var source: StickerSource = .native
     var width: Double = 320
     var height: Double = 480
@@ -110,6 +112,18 @@ struct StickerSettings: Codable {
             .filter { !$0.isEmpty }
     }
 
+    /// 磁贴标题：手改过就用改过的，否则用 HA 的 friendly_name
+    func title(for entityID: String, fallback: String) -> String {
+        guard let n = names[entityID]?.trimmingCharacters(in: .whitespacesAndNewlines), !n.isEmpty else { return fallback }
+        return n
+    }
+
+    /// 磁贴图标：手选过就用选的 SF Symbol，否则用按名字自动猜的那个
+    func symbol(for entityID: String, fallback: String) -> String {
+        guard let i = icons[entityID]?.trimmingCharacters(in: .whitespacesAndNewlines), !i.isEmpty else { return fallback }
+        return i
+    }
+
     /// 没写 scheme 的自动补 http://
     func normalizedURLString() -> String? {
         var s = haURL.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -125,7 +139,7 @@ struct StickerSettings: Codable {
     // （Codable 默认不会用默认值兜底，缺 key 会直接 throw，那样会把已配好的地址冲掉）
 
     enum CodingKeys: String, CodingKey {
-        case haURL, token, entities, source, width, height, opacity, zoom, cornerRadius, mode, appearance, lockPosition, x, y
+        case haURL, token, entities, source, width, height, opacity, zoom, cornerRadius, mode, appearance, lockPosition, x, y, icons, names
     }
 
     init() {}
@@ -136,6 +150,8 @@ struct StickerSettings: Codable {
         haURL        = try c.decodeIfPresent(String.self, forKey: .haURL) ?? d.haURL
         token        = try c.decodeIfPresent(String.self, forKey: .token) ?? d.token
         entities     = try c.decodeIfPresent(String.self, forKey: .entities) ?? d.entities
+        icons        = try c.decodeIfPresent([String: String].self, forKey: .icons) ?? d.icons
+        names        = try c.decodeIfPresent([String: String].self, forKey: .names) ?? d.names
         source       = try c.decodeIfPresent(StickerSource.self, forKey: .source) ?? d.source
         width        = try c.decodeIfPresent(Double.self, forKey: .width) ?? d.width
         height       = try c.decodeIfPresent(Double.self, forKey: .height) ?? d.height
