@@ -36,7 +36,7 @@ struct NativeStickerView: View {
 
     private func content(size: CGSize) -> some View {
         let list = items(from: store)
-        let cols = size.width > 380 ? 3 : 2
+        let cols = columnCount(for: list.count, size: size)
         let rows = stride(from: 0, to: list.count, by: cols).map { Array(list[$0..<min($0 + cols, list.count)]) }
 
         return VStack(spacing: gap) {
@@ -64,6 +64,22 @@ struct NativeStickerView: View {
             }
         }
         .padding(pad)
+    }
+
+    /// 列数按「能不能塞进现有高度」来定：磁贴越多越会自动加列，
+    /// 不然 12 个磁贴按 2 列排成 6 行，底下两行会被窗口切掉。
+    private func columnCount(for count: Int, size: CGSize) -> Int {
+        guard count > 1 else { return 1 }
+        // 20 = 顶部胶囊，gap = 胶囊与第一行的间距，pad*2 = 四周留白
+        let usableH = size.height - 20 - gap - pad * 2
+        let widest = Int((size.width - pad * 2) / 86)          // 每格至少 86pt 宽才放得下字
+        let maxCols = max(2, min(4, widest))
+        for c in 2...maxCols {
+            let rowCount = Int(ceil(Double(count) / Double(c)))
+            let rowH = (usableH - gap * CGFloat(rowCount - 1)) / CGFloat(rowCount)
+            if rowH >= 62 { return c }
+        }
+        return maxCols   // 实在放不下就尽量多排几列，至少不浪费宽度
     }
 
     /// 顶部：温湿度胶囊 + 连接状态点
@@ -130,14 +146,22 @@ struct NativeStickerView: View {
         )
     }
 
+    /// 家里往往有好几个温湿度传感器（净化器自带、插件自带…），名字最短的那个通常是屋里那个
+    /// 正经温湿度计；另外必须用数值型，排除 unavailable / unknown 这类。
+    private func bestSensor(of kind: String) -> HAState? {
+        store.states.values
+            .filter { $0.deviceClass == kind && Double($0.state) != nil }
+            .sorted { $0.name.count < $1.name.count }
+            .first
+    }
+
     private var sensors: [(String, String)] {
         var out: [(String, String)] = []
-        let all = store.states.values
-        if let t = all.first(where: { $0.deviceClass == "temperature" }) {
+        if let t = bestSensor(of: "temperature") {
             out.append(("thermometer", "\(t.state)\(t.unit)"))
         }
-        if let h = all.first(where: { $0.deviceClass == "humidity" }) {
-            out.append(("humidity", "\(h.state)\(h.unit)"))
+        if let h = bestSensor(of: "humidity") {
+            out.append(("drop", "\(h.state)\(h.unit)"))
         }
         return out
     }
