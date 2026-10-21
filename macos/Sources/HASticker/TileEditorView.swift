@@ -31,9 +31,11 @@ struct TileEditorView: View {
     @State private var all: [HAEntityRow] = []
     @State private var icons: [String: String] = [:]
     @State private var names: [String: String] = [:]
+    @State private var imageIcons: [String: TileImage] = [:]
     @State private var query = ""
     @State private var notice = ""
     @State private var editingID: String?
+    @State private var imageEditingID: String?
 
     init(settings: StickerSettings,
          onSave: @escaping (StickerSettings) -> Void,
@@ -44,6 +46,7 @@ struct TileEditorView: View {
         _picked = State(initialValue: settings.explicitEntities)
         _icons = State(initialValue: settings.icons)
         _names = State(initialValue: settings.names)
+        _imageIcons = State(initialValue: settings.imageIcons)
     }
 
     var body: some View {
@@ -59,6 +62,7 @@ struct TileEditorView: View {
         .frame(width: 700)
         .task { await loadEntities() }
         .sheet(isPresented: pickerShown) { picker }
+        .sheet(isPresented: imagePickerShown) { imagePicker }
     }
 
     // MARK: - 头部
@@ -123,7 +127,8 @@ struct TileEditorView: View {
                     .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
             )
 
-            Text("左侧方块是图标，点一下就能换；中间可以直接改名字；↕ 调顺序，✕ 删掉。")
+            Text("左边方块＝挑苹果自带图标，旁边的「🖼」＝上传自己的图片（开一张、关一张）；"
+                 + "中间那行可以直接改名字；↕ 调顺序，✕ 删掉。")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
@@ -132,16 +137,38 @@ struct TileEditorView: View {
     private func tileRow(id: String, index: Int) -> some View {
         HStack(spacing: 8) {
             Button { editingID = id } label: {
-                Image(systemName: iconFor(id))
-                    .font(.system(size: 16))
-                    .frame(width: 34, height: 28)
+                Group {
+                    if let img = previewImage(id) {
+                        Image(nsImage: img)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 20, height: 20)
+                    } else {
+                        Image(systemName: iconFor(id))
+                            .font(.system(size: 16))
+                    }
+                }
+                .frame(width: 34, height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.14))
+                )
+            }
+            .help("从 macOS 自带图标里挑一个")
+            .disabled(previewImage(id) == nil && !symbolExists(iconFor(id)))
+
+            Button { imageEditingID = id } label: {
+                Image(systemName: "photo")
+                    .font(.system(size: 12))
+                    .frame(width: 26, height: 28)
                     .background(
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(Color.accentColor.opacity(0.14))
+                            .fill(imageIcons[id]?.isEmpty == false
+                                  ? Color.accentColor.opacity(0.3)
+                                  : Color.primary.opacity(0.06))
                     )
             }
-            .help("换图标")
-            .disabled(!symbolExists(iconFor(id)))
+            .help("上传自己的图片：开一张、关一张")
 
             VStack(alignment: .leading, spacing: 1) {
                 TextField("名称", text: nameBinding(id))
@@ -252,6 +279,32 @@ struct TileEditorView: View {
         Binding(get: { editingID != nil }, set: { if !$0 { editingID = nil } })
     }
 
+    // MARK: - 自定义图片
+
+    private var imagePickerShown: Binding<Bool> {
+        Binding(get: { imageEditingID != nil }, set: { if !$0 { imageEditingID = nil } })
+    }
+
+    private var imagePicker: some View {
+        Group {
+            if let id = imageEditingID {
+                TileImageEditorView(entityID: id,
+                                    title: displayName(id),
+                                    image: imageBinding(id),
+                                    onDone: { imageEditingID = nil })
+            }
+        }
+    }
+
+    private func imageBinding(_ id: String) -> Binding<TileImage> {
+        Binding(
+            get: { imageIcons[id] ?? TileImage() },
+            set: { new in
+                if new.isEmpty { imageIcons[id] = nil } else { imageIcons[id] = new }
+            }
+        )
+    }
+
     private var picker: some View {
         Group {
             if let id = editingID {
@@ -341,8 +394,13 @@ struct TileEditorView: View {
                 cleanIcons[id] = v.trimmingCharacters(in: .whitespacesAndNewlines)
             }
         }
+        var cleanImages: [String: TileImage] = [:]
+        for id in picked {
+            if let v = imageIcons[id], !v.isEmpty { cleanImages[id] = v }
+        }
         s.names = cleanNames
         s.icons = cleanIcons
+        s.imageIcons = cleanImages
         onSave(s)
     }
 
@@ -400,6 +458,13 @@ struct TileEditorView: View {
     private func displayName(_ id: String) -> String {
         if let n = names[id], !n.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return n }
         return known[id]?.name ?? id
+    }
+
+    /// 行里显示的图标：上传了图片就用图片，否则用 SF Symbol
+    private func previewImage(_ id: String) -> NSImage? {
+        guard let pair = imageIcons[id] else { return nil }
+        let file = pair.on.isEmpty ? pair.off : pair.on
+        return file.isEmpty ? nil : StickerSettings.cachedImage(named: file)
     }
 
     private func iconFor(_ id: String) -> String {

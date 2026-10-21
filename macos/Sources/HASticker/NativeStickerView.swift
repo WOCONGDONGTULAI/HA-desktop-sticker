@@ -47,6 +47,7 @@ struct NativeStickerView: View {
                         TileView(state: s,
                                  title: settings.title(for: s.entityID, fallback: s.name),
                                  icon: settings.symbol(for: s.entityID, fallback: s.autoSymbol),
+                                 image: settings.tileImage(for: s.entityID, isOn: s.isOn),
                                  on: s.isOn,
                                  enabled: s.isToggleable,
                                  readable: row.count > 1) {
@@ -191,6 +192,7 @@ private struct TileView: View {
     let state: HAState
     let title: String           // 标题：可能被用户在编辑器里改过
     let icon: String            // SF Symbol：可能手选过
+    let image: NSImage?         // 自己上传的图：有就用这个，忽略 icon
     let on: Bool
     let enabled: Bool           // 传感器之类不能切的就只是展示
     let readable: Bool          // 只有一个磁贴时不压缩文字
@@ -199,9 +201,20 @@ private struct TileView: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: 3) {
-                Image(systemName: icon)
-                    .font(.system(size: 22, weight: .medium))
-                    .foregroundColor(on ? .accentColor : Color.secondary.opacity(0.75))
+                Group {
+                    if let image = image {
+                        Image(nsImage: image)
+                            .resizable()
+                            .renderingMode(.original)   // 保留原图颜色，别被 accent 染色
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 26, height: 26)
+                    } else {
+                        Image(systemName: icon)
+                            .font(.system(size: 22, weight: .medium))
+                            .foregroundColor(on ? .accentColor : Color.secondary.opacity(0.75))
+                    }
+                }
+                .frame(height: 26)
                 Text(title)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.primary)

@@ -70,12 +70,21 @@ enum StickerSource: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// 用户自己上传的图标：「开」一张、「关」一张，存的是文件名（放在 iconsDirectory 里）
+struct TileImage: Codable, Equatable {
+    var on: String = ""
+    var off: String = ""
+
+    var isEmpty: Bool { on.isEmpty && off.isEmpty }
+}
+
 struct StickerSettings: Codable {
     var haURL: String = ""
     var token: String = ""            // HA 长期访问令牌（原生面板用）
     var entities: String = ""         // 逗号分隔的 entity_id；留空 = 自动挑
     var icons: [String: String] = [:]  // entity_id -> SF Symbol 名字（手改过的）
     var names: [String: String] = [:]  // entity_id -> 磁贴标题（手改过的）
+    var imageIcons: [String: TileImage] = [:]   // entity_id -> 自上传的开/关两张图
     var source: StickerSource = .native
     var width: Double = 320
     var height: Double = 480
@@ -139,7 +148,7 @@ struct StickerSettings: Codable {
     // （Codable 默认不会用默认值兜底，缺 key 会直接 throw，那样会把已配好的地址冲掉）
 
     enum CodingKeys: String, CodingKey {
-        case haURL, token, entities, source, width, height, opacity, zoom, cornerRadius, mode, appearance, lockPosition, x, y, icons, names
+        case haURL, token, entities, source, width, height, opacity, zoom, cornerRadius, mode, appearance, lockPosition, x, y, icons, names, imageIcons
     }
 
     init() {}
@@ -152,6 +161,7 @@ struct StickerSettings: Codable {
         entities     = try c.decodeIfPresent(String.self, forKey: .entities) ?? d.entities
         icons        = try c.decodeIfPresent([String: String].self, forKey: .icons) ?? d.icons
         names        = try c.decodeIfPresent([String: String].self, forKey: .names) ?? d.names
+        imageIcons   = try c.decodeIfPresent([String: TileImage].self, forKey: .imageIcons) ?? d.imageIcons
         source       = try c.decodeIfPresent(StickerSource.self, forKey: .source) ?? d.source
         width        = try c.decodeIfPresent(Double.self, forKey: .width) ?? d.width
         height       = try c.decodeIfPresent(Double.self, forKey: .height) ?? d.height
@@ -167,12 +177,24 @@ struct StickerSettings: Codable {
 }
 
 extension StickerSettings {
-    static var fileURL: URL {
+    /// 本机配置目录：~/Library/Application Support/HASticker
+    static var supportDirectory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory,
                                             in: .userDomainMask).first!
         let folder = base.appendingPathComponent("HASticker", isDirectory: true)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        return folder.appendingPathComponent("settings.json")
+        return folder
+    }
+
+    /// 用户上传的图标放这里：…/HASticker/icons
+    static var iconsDirectory: URL {
+        let folder = supportDirectory.appendingPathComponent("icons", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+    }
+
+    static var fileURL: URL {
+        supportDirectory.appendingPathComponent("settings.json")
     }
 
     static func load() -> StickerSettings {
@@ -188,5 +210,31 @@ extension StickerSettings {
 
     static func reset() {
         try? FileManager.default.removeItem(at: fileURL)
+    }
+
+    // MARK: - 自定义图片图标
+
+    /// 图片不大，但每次重绘都读盘没必要，缓存一下
+    private static let imageCache = NSCache<NSString, NSImage>()
+
+    static func cachedImage(named file: String) -> NSImage? {
+        if let hit = imageCache.object(forKey: file as NSString) { return hit }
+        let url = iconsDirectory.appendingPathComponent(file)
+        guard let img = NSImage(contentsOfFile: url.path) else { return nil }
+        imageCache.setObject(img, forKey: file as NSString)
+        return img
+    }
+
+    static func forgetCachedImage(named file: String) {
+        imageCache.removeObject(forKey: file as NSString)
+    }
+
+    /// 这个实体有没有上传过图片？返回当前状态该显示的那一张（没传 off 就用 on）
+    func tileImage(for entityID: String, isOn: Bool) -> NSImage? {
+        guard let pair = imageIcons[entityID], !pair.isEmpty else { return nil }
+        let file = isOn ? (pair.on.isEmpty ? pair.off : pair.on)
+                        : (pair.off.isEmpty ? pair.on : pair.off)
+        guard !file.isEmpty else { return nil }
+        return StickerSettings.cachedImage(named: file)
     }
 }
