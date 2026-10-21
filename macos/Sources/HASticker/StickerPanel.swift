@@ -22,7 +22,9 @@ final class StickerPanel: NSPanel {
         self.content = StickerContentView(settings: settings)
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: settings.width, height: settings.height),
-            styleMask: [.borderless, .nonactivatingPanel, .resizable, .fullSizeContentView],
+            // 注意：不能带 .nonactivatingPanel —— 带了点击就不会激活 app，
+            // 窗口拿不到键盘焦点，登录框里既打不了字也粘不了东西
+            styleMask: [.borderless, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -32,7 +34,7 @@ final class StickerPanel: NSPanel {
         hasShadow = true
         isMovableByWindowBackground = true
         hidesOnDeactivate = false
-        becomesKeyOnlyIfNeeded = true
+        becomesKeyOnlyIfNeeded = false   // 点一下就要能拿到键盘焦点（要往登录框里打字/粘贴）
         animationBehavior = .utilityWindow
         titlebarAppearsTransparent = true
         titleVisibility = .hidden
@@ -80,6 +82,27 @@ final class StickerPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
+    // MARK: - 拷贝粘贴
+    // app 没有 Nib、也没有主菜单，Cmd+C/V/X/A 这些默认全都不通，
+    // 这里直接在窗口层面拦下来转发给响应链（第一响应者就是网页里的输入框）。
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard event.modifierFlags.contains(.command),
+              let key = event.charactersIgnoringModifiers?.lowercased() else {
+            return super.performKeyEquivalent(with: event)
+        }
+        let sel: String?
+        switch key {
+        case "v": sel = "paste:"
+        case "c": sel = "copy:"
+        case "x": sel = "cut:"
+        case "a": sel = "selectAll:"
+        default:  sel = nil
+        }
+        guard let name = sel else { return super.performKeyEquivalent(with: event) }
+        return NSApp.sendAction(NSSelectorFromString(name), to: nil, from: self)
+    }
+
     // MARK: - 任意位置拖动
 
     override func sendEvent(_ event: NSEvent) {
@@ -88,6 +111,8 @@ final class StickerPanel: NSPanel {
             didDrag = false
             dragStartMouse = NSEvent.mouseLocation
             dragStartOrigin = frame.origin
+            // accessory 型 app 要显式激活，否则窗口成不了 key，键盘输入进不来
+            NSApp.activate(ignoringOtherApps: true)
             super.sendEvent(event)
 
         case .leftMouseDragged:

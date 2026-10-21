@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        buildMainMenu()
         buildStatusItem()
         rightClickMenu = buildMenu()
 
@@ -43,6 +44,70 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         if let o = appearanceObserver {
             DistributedNotificationCenter.default().removeObserver(o)
         }
+    }
+
+    // MARK: - 主菜单
+    // 这个 app 没有 Nib，也就没有默认的 Edit 菜单 —— 没有它 Cmd+C/V/X/A 一条都不通
+    // （nil target 的菜单项会自动走响应链，最终落到 first responder，也就是网页里的输入框）。
+
+    private func buildMainMenu() {
+        let main = NSMenu()
+
+        let appItem = NSMenuItem()
+        let appMenu = NSMenu()
+        let quitItem = NSMenuItem(title: "退出 HA 贴纸", action: #selector(quit), keyEquivalent: "q")
+        quitItem.target = self
+        appMenu.addItem(quitItem)
+        appItem.submenu = appMenu
+        main.addItem(appItem)
+
+        let editItem = NSMenuItem()
+        let editMenu = NSMenu(title: "编辑")
+        let defs: [(String, String, String)] = [
+            ("撤销", "undo:", "z"),
+            ("重做", "redo:", "Z"),
+            ("剪切", "cut:", "x"),
+            ("拷贝", "copy:", "c"),
+            ("粘贴", "paste:", "v"),
+            ("全选", "selectAll:", "a")
+        ]
+        for (title, sel, key) in defs {
+            editMenu.addItem(NSMenuItem(title: title,
+                                        action: NSSelectorFromString(sel),
+                                        keyEquivalent: key))
+        }
+        editItem.submenu = editMenu
+        main.addItem(editItem)
+
+        NSApp.mainMenu = main
+    }
+
+    /// WKWebView 不响应 paste: 时的兜底：把剪贴板文本直接插进页面里当前聚焦的输入框
+    @objc func paste(_ sender: Any?) {
+        guard let text = NSPasteboard.general.string(forType: .string), !text.isEmpty else { return }
+        let encoded = (try? JSONEncoder().encode(text)).flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
+        let js = """
+        (function(){
+          var s = \(encoded);
+          var el = document.activeElement;
+          if (!el) return false;
+          var tag = (el.tagName || '').toLowerCase();
+          if (tag === 'input' || tag === 'textarea') {
+            var v = el.value || '';
+            var a = el.selectionStart, b = el.selectionEnd;
+            if (a === null || b === null) { el.value = v + s; }
+            else {
+              el.value = v.slice(0, a) + s + v.slice(b);
+              el.selectionStart = el.selectionEnd = a + s.length;
+            }
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            return true;
+          }
+          if (el.isContentEditable) { document.execCommand('insertText', false, s); return true; }
+          return false;
+        })();
+        """
+        panel.content.webView.evaluateJavaScript(js, completionHandler: nil)
     }
 
     // MARK: - 菜单栏图标（贴纸没有 Dock 图标，这是唯一的入口）
@@ -77,6 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         m.addItem(.separator())
         m.addItem(withTitle: "设置…", action: #selector(openSettings), keyEquivalent: ",")
         m.addItem(withTitle: "重新加载", action: #selector(reloadPage), keyEquivalent: "r")
+        m.addItem(withTitle: "粘贴到页面", action: #selector(pasteToPage), keyEquivalent: "")
         m.addItem(withTitle: "在浏览器里打开 HA", action: #selector(openInBrowser), keyEquivalent: "")
         m.addItem(.separator())
 
@@ -167,6 +233,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     @objc private func reloadPage() {
         panel.content.reload()
     }
+
+    /// Cmd+V 万一还是不通，右键里这一条直接走剪贴板 → 网页输入框
+    @objc private func pasteToPage() { paste(nil) }
 
     @objc private func openInBrowser() {
         if let s = settings.normalizedURLString(), let url = URL(string: s) {
