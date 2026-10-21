@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 
 /// 贴纸的三种贴法
 enum StickerMode: String, Codable, CaseIterable, Identifiable {
@@ -17,6 +18,43 @@ enum StickerMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// 外观：跟随系统 / 强制浅色 / 强制深色
+enum StickerAppearance: String, Codable, CaseIterable, Identifiable {
+    case auto
+    case light
+    case dark
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .auto:  return "跟随系统"
+        case .light: return "始终浅色"
+        case .dark:  return "始终深色"
+        }
+    }
+
+    /// 强制模式返回对应的 NSAppearance；跟随系统返回 nil（继承系统）
+    var nsAppearance: NSAppearance? {
+        switch self {
+        case .auto:  return nil
+        case .light: return NSAppearance(named: .aqua)
+        case .dark:  return NSAppearance(named: .darkAqua)
+        }
+    }
+
+    /// 实际生效的是不是深色（auto 时按当前系统外观判断）
+    var resolvedIsDark: Bool {
+        switch self {
+        case .dark:  return true
+        case .light: return false
+        case .auto:
+            let app = NSApplication.shared.effectiveAppearance
+            return app.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        }
+    }
+}
+
 struct StickerSettings: Codable {
     var haURL: String = ""
     var width: Double = 320
@@ -25,6 +63,7 @@ struct StickerSettings: Codable {
     var zoom: Double = 1.0
     var cornerRadius: Double = 12
     var mode: StickerMode = .desktop
+    var appearance: StickerAppearance = .auto
     var lockPosition: Bool = false
     var x: Double?
     var y: Double?
@@ -42,6 +81,32 @@ struct StickerSettings: Codable {
     }
 
     static let sampleURL = "http://homeassistant.local:8123/ha-sticker?kiosk"
+
+    // MARK: - Codable
+    // 逐字段 decodeIfPresent：老版本 settings.json 缺字段时不会整体解析失败
+    // （Codable 默认不会用默认值兜底，缺 key 会直接 throw，那样会把已配好的地址冲掉）
+
+    enum CodingKeys: String, CodingKey {
+        case haURL, width, height, opacity, zoom, cornerRadius, mode, appearance, lockPosition, x, y
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = StickerSettings()
+        haURL        = try c.decodeIfPresent(String.self, forKey: .haURL) ?? d.haURL
+        width        = try c.decodeIfPresent(Double.self, forKey: .width) ?? d.width
+        height       = try c.decodeIfPresent(Double.self, forKey: .height) ?? d.height
+        opacity      = try c.decodeIfPresent(Double.self, forKey: .opacity) ?? d.opacity
+        zoom         = try c.decodeIfPresent(Double.self, forKey: .zoom) ?? d.zoom
+        cornerRadius = try c.decodeIfPresent(Double.self, forKey: .cornerRadius) ?? d.cornerRadius
+        mode         = try c.decodeIfPresent(StickerMode.self, forKey: .mode) ?? d.mode
+        appearance   = try c.decodeIfPresent(StickerAppearance.self, forKey: .appearance) ?? d.appearance
+        lockPosition = try c.decodeIfPresent(Bool.self, forKey: .lockPosition) ?? d.lockPosition
+        x            = try c.decodeIfPresent(Double.self, forKey: .x)
+        y            = try c.decodeIfPresent(Double.self, forKey: .y)
+    }
 }
 
 extension StickerSettings {

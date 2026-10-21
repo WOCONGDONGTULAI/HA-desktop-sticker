@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var zoom: Double
     @State private var cornerRadius: Double
     @State private var mode: StickerMode
+    @State private var appearance: StickerAppearance
     @State private var lockPosition: Bool
 
     private let original: StickerSettings
@@ -27,6 +28,7 @@ struct SettingsView: View {
         _zoom = State(initialValue: settings.zoom)
         _cornerRadius = State(initialValue: settings.cornerRadius)
         _mode = State(initialValue: settings.mode)
+        _appearance = State(initialValue: settings.appearance)
         _lockPosition = State(initialValue: settings.lockPosition)
     }
 
@@ -68,7 +70,12 @@ struct SettingsView: View {
                 ForEach(StickerMode.allCases) { Text($0.displayName).tag($0) }
             }
 
+            Picker("外观", selection: $appearance) {
+                ForEach(StickerAppearance.allCases) { Text($0.displayName).tag($0) }
+            }
+
             Toggle("锁定位置（不能拖动）", isOn: $lockPosition)
+                .help("取消勾选后，在贴纸任意位置按住左键拖动即可移动")
 
             HStack {
                 Button("取消") { onCancel() }
@@ -83,6 +90,7 @@ struct SettingsView: View {
                     s.zoom = zoom
                     s.cornerRadius = cornerRadius
                     s.mode = mode
+                    s.appearance = appearance
                     s.lockPosition = lockPosition
                     onSave(s)
                 }

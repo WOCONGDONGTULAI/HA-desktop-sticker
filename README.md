@@ -2,7 +2,7 @@
 
 把 Home Assistant 的仪表盘变成**贴在桌面上的小贴纸**：不用开浏览器、不用切标签页，抬眼就能看到、伸手就能点。
 
-- macOS 端：AppKit `NSPanel` + `WKWebView`，可真正贴进桌面层
+- macOS 端：AppKit `NSPanel` + `WKWebView`，可真正贴进桌面层；任意位置拖动、深浅色跟随系统
 - Windows 端：WinForms + WebView2，支持嵌入 Explorer 桌面层
 
 两端共用同一份 Home Assistant 仪表盘，登录一次长期保持。
@@ -63,6 +63,14 @@ Web 数据目录是持久的（Windows：`%LOCALAPPDATA%\HASticker\WebView2Data`
 
 **想改大小**
 拖动贴纸边缘即可缩放（Windows 需要拖动条解锁状态），位置和大小都会记住。
+
+**macOS：拖不动 / 想自由移动**
+在贴纸**任意位置**（包括网页上）按住左键就能拖，位移小于 4pt 会被当成点击，不会误触开关。
+如果完全拖不动，检查菜单里的「锁定位置」是不是勾上了。
+
+**macOS：想要深色**
+默认「跟随系统」：系统切深色，贴纸和里面的 HA 仪表盘一起变深。
+想固定就在菜单 → 外观 里选「始终浅色」或「始终深色」。
 
 ## 版本
 

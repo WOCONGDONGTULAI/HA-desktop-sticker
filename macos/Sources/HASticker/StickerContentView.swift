@@ -5,6 +5,10 @@ import WebKit
 final class StickerContentView: NSView, WKNavigationDelegate {
     private(set) var webView: WKWebView!
     private var settings: StickerSettings
+    private var isDark = false
+
+    private static let lightBG = NSColor(calibratedWhite: 0.97, alpha: 1)
+    private static let darkBG  = NSColor(calibratedRed: 0.11, green: 0.11, blue: 0.12, alpha: 1)
 
     init(settings: StickerSettings) {
         self.settings = settings
@@ -13,9 +17,11 @@ final class StickerContentView: NSView, WKNavigationDelegate {
         wantsLayer = true
         layer?.cornerRadius = CGFloat(settings.cornerRadius)
         layer?.masksToBounds = true
-        layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        layer?.backgroundColor = StickerContentView.lightBG.cgColor
 
         setupWebView()
+        applyAppearance(appearance: settings.appearance.nsAppearance,
+                        isDark: settings.appearance.resolvedIsDark)
     }
 
     required init?(coder: NSCoder) {
@@ -26,6 +32,8 @@ final class StickerContentView: NSView, WKNavigationDelegate {
         let config = WKWebViewConfiguration()
         // 默认数据存储是持久的，HA 登录态会一直留着
         config.websiteDataStore = .default()
+        // 拖动贴纸时不希望网页里的文字被框选
+        config.userContentController = WKUserContentController()
 
         let wv = WKWebView(frame: bounds, configuration: config)
         wv.autoresizingMask = [.width, .height]
@@ -49,7 +57,45 @@ final class StickerContentView: NSView, WKNavigationDelegate {
         }
     }
 
+    /// 切换深浅色：容器底色 + 网页 appearance + 强制给 HA 推一次主题
+    func applyAppearance(appearance: NSAppearance?, isDark dark: Bool) {
+        isDark = dark
+        self.appearance = appearance
+        webView?.appearance = appearance
+        layer?.backgroundColor = (dark ? StickerContentView.darkBG : StickerContentView.lightBG).cgColor
+        installThemeScript(dark: dark)
+    }
+
+    /// 注入脚本：让 HA 前端跟着切深色（前端主题设为「默认」时会看 prefers-color-scheme，
+    /// 这里再补一道保险，直接给 home-assistant 元素发 settheme）
+    private func installThemeScript(dark: Bool) {
+        guard let controller = webView?.configuration.userContentController else { return }
+        controller.removeAllUserScripts()
+
+        let js = """
+        (function(){
+          var dark = \(dark ? "true" : "false");
+          try { document.documentElement.style.colorScheme = dark ? 'dark' : 'light'; } catch(e){}
+          var tries = 0;
+          function apply(){
+            try {
+              var ha = document.querySelector('home-assistant');
+              if (ha) {
+                ha.dispatchEvent(new CustomEvent('settheme', { detail: { theme: 'default', dark: dark } }));
+              }
+            } catch(e){}
+            if (++tries < 8) { setTimeout(apply, 600); }
+          }
+          apply();
+        })();
+        """
+        controller.addUserScript(WKUserScript(source: js,
+                                              injectionTime: .atDocumentEnd,
+                                              forMainFrameOnly: true))
+    }
+
     func load() {
+        installThemeScript(dark: isDark)
         guard let s = settings.normalizedURLString(), let url = URL(string: s) else {
             showErrorPage(title: "还没设置 HA 地址",
                           detail: "右键贴纸，或点菜单栏图标 → 设置",
@@ -64,15 +110,19 @@ final class StickerContentView: NSView, WKNavigationDelegate {
         let safeDetail = detail.replacingOccurrences(of: "\n", with: "<br>")
         let retry = retryURL == nil ? "" :
             "<a href=\"\(retryURL!)\" style=\"display:inline-block;margin-top:16px;padding:6px 16px;" +
-            "border-radius:6px;background:#3a3a3c;color:#e8e8e8;text-decoration:none;font-size:12px\">重试</a>"
+            "border-radius:6px;background:\(isDark ? "#3a3a3c" : "#e0e0e3");" +
+            "color:\(isDark ? "#e8e8e8" : "#1c1c1e");text-decoration:none;font-size:12px\">重试</a>"
+        let bg = isDark ? "#1c1c1e" : "#f6f6f7"
+        let fg = isDark ? "#d8d8d8" : "#1c1c1e"
+        let sub = isDark ? "#8a8a8e" : "#6b6b70"
         let html = """
         <!doctype html><html><head><meta charset="utf-8">
         <style>
-        html,body{margin:0;height:100%;background:#1c1c1e;}
+        html,body{margin:0;height:100%;background:\(bg);}
         .wrap{height:100%;display:flex;align-items:center;justify-content:center;
-              font-family:-apple-system,"PingFang SC",sans-serif;text-align:center;color:#d8d8d8;}
+              font-family:-apple-system,"PingFang SC",sans-serif;text-align:center;color:\(fg);}
         .t{font-size:14px;margin-bottom:10px;}
-        .d{font-size:12px;line-height:1.8;color:#8a8a8e;word-break:break-all;padding:0 18px;}
+        .d{font-size:12px;line-height:1.8;color:\(sub);word-break:break-all;padding:0 18px;}
         </style></head><body><div class="wrap"><div>
         <div class="t">\(title)</div><div class="d">\(safeDetail)</div>\(retry)
         </div></div></body></html>

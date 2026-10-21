@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     private var localMonitor: Any?
     private var moveObserver: NSObjectProtocol?
     private var resizeObserver: NSObjectProtocol?
+    private var appearanceObserver: NSObjectProtocol?
 
     override init() {
         self.settings = StickerSettings.load()
@@ -22,11 +23,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         rightClickMenu = buildMenu()
 
         panel = StickerPanel(settings: settings)
+        panel.onFrameChanged = { [weak self] in self?.saveFrame() }
         panel.content.load()
         panel.orderFrontRegardless()
 
         installRightClickMonitor()
         observeFrameChanges()
+        observeSystemAppearance()
 
         if !settings.isConfigured {
             openSettings()
@@ -37,6 +40,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         panel?.captureFrame()
         if let s = panel?.currentSettings { s.save() }
         if let m = localMonitor { NSEvent.removeMonitor(m) }
+        if let o = appearanceObserver {
+            DistributedNotificationCenter.default().removeObserver(o)
+        }
     }
 
     // MARK: - 菜单栏图标（贴纸没有 Dock 图标，这是唯一的入口）
@@ -96,6 +102,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         m.setSubmenu(opacityMenu, for: opacityItem)
         m.addItem(opacityItem)
 
+        let lookItem = NSMenuItem(title: "外观", action: nil, keyEquivalent: "")
+        let lookMenu = NSMenu()
+        for look in StickerAppearance.allCases {
+            let item = NSMenuItem(title: look.displayName, action: #selector(setAppearance(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = look.rawValue
+            lookMenu.addItem(item)
+        }
+        m.setSubmenu(lookMenu, for: lookItem)
+        m.addItem(lookItem)
+
         let lockItem = NSMenuItem(title: "锁定位置", action: #selector(toggleLock), keyEquivalent: "")
         lockItem.representedObject = "lock"
         m.addItem(lockItem)
@@ -114,7 +131,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         for item in menu.items {
             guard let sub = item.submenu else { continue }
             for subItem in sub.items {
-                if let modeRaw = subItem.representedObject as? String,
+                if let raw = subItem.representedObject as? String,
+                   let look = StickerAppearance(rawValue: raw) {
+                    subItem.state = (look == settings.appearance) ? .on : .off
+                } else if let modeRaw = subItem.representedObject as? String,
                    StickerMode(rawValue: modeRaw) != nil {
                     subItem.state = (modeRaw == settings.mode.rawValue) ? .on : .off
                 } else if let value = subItem.representedObject as? Double {
@@ -162,6 +182,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         panel.update(settings: settings)
     }
 
+    @objc private func setAppearance(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let look = StickerAppearance(rawValue: raw) else { return }
+        settings.appearance = look
+        settings.save()
+        panel.update(settings: settings)   // 内部会检测到外观变了，自动 reload
+    }
+
+    /// 系统深浅色切换（外观设为「跟随系统」时才需要跟着动）
+    private func observeSystemAppearance() {
+        appearanceObserver = DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("AppleInterfaceThemeChangedNotification"),
+            object: nil, queue: .main) { [weak self] _ in
+                guard let self = self else { return }
+                guard self.settings.appearance == .auto else { return }
+                self.panel.applyAppearance()
+                self.panel.content.reload()
+            }
+    }
+
     @objc private func toggleLock() {
         settings.lockPosition.toggle()
         settings.save()
@@ -199,7 +239,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             onCancel: { [weak self] in self?.closeSettings() }
         )
 
-        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 500, height: 430),
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 500, height: 510),
                            styleMask: [.titled, .closable],
                            backing: .buffered,
                            defer: false)
@@ -235,9 +275,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
                                         object: panel, queue: .main) { [weak self] _ in self?.saveFrame() }
     }
 
+    private var saveWork: DispatchWorkItem?
+
+    /// 拖动时 didMove 会疯狂触发，合并一下再落盘
     private func saveFrame() {
         panel.captureFrame()
         settings = panel.currentSettings
-        settings.save()
+        saveWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.settings.save() }
+        saveWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
     }
 }
