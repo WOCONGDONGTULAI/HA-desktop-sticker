@@ -29,12 +29,35 @@ chmod +x make-app.sh
 
 ## 用
 
-1. 首次运行自动弹设置框 → 填 HA 仪表盘地址，比如：
-   ```
-   http://homeassistant.local:8123/ha-sticker?kiosk
-   ```
-2. 第一次会跳 HA 登录页，登录一次，之后永久自动登录。
-3. 之后每次开机启动，贴纸就在那儿了。
+首次运行自动弹设置框，两条路选一条：
+
+### A. 原生面板（推荐，默认）
+
+不走网页，直接调 HA 的 REST + WebSocket，界面自己画：干净、秒开、没有 HA 顶栏和菜单、
+**完全没有滚动条**。
+
+填两个东西：
+1. **Home Assistant 地址**：填到端口就行，比如 `http://192.168.5.18:8123`
+2. **长期访问令牌**：HA 网页左下角点你的用户名 → **安全** → 页面底部「长期访问令牌」
+   → 创建令牌 → 复制，粘进设置里
+
+令牌只存在本机 `~/Library/Application Support/HASticker/settings.json`，不会外传。
+
+想自定义显示哪些设备 / 排序：设置里的「显示哪些实体」填 entity_id，逗号分隔，例如
+```
+switch.pzg_0002_069f_switch, light.yeelight, sensor.miaomiaoce_t2_568c_temperature
+```
+留空就自动显示所有 开关 / 灯 / 风扇 / 空调（最多 12 个，按名字排序）。
+
+### B. 网页
+
+填仪表盘地址，比如：
+```
+http://homeassistant.local:8123/ha-sticker?kiosk
+```
+第一次会跳 HA 登录页，登录一次之后永久自动登录。
+
+菜单 →「内容来源」可以随时在两种之间切换。
 
 想开机自启：系统设置 → 通用 → 登录项 → 把 `HASticker.app` 加进去。
 

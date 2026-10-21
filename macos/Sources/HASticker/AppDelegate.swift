@@ -25,12 +25,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
         panel = StickerPanel(settings: settings)
         panel.onFrameChanged = { [weak self] in self?.saveFrame() }
-        panel.content.load()
+        panel.load()
         panel.orderFrontRegardless()
 
         installRightClickMonitor()
         observeFrameChanges()
         observeSystemAppearance()
+
+        // 原生面板里的「打开设置」按钮
+        NotificationCenter.default.addObserver(forName: .haStickerOpenSettings,
+                                              object: nil, queue: .main) { [weak self] _ in
+            self?.openSettings()
+        }
 
         if !settings.isConfigured {
             openSettings()
@@ -146,6 +152,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         m.addItem(withTitle: "在浏览器里打开 HA", action: #selector(openInBrowser), keyEquivalent: "")
         m.addItem(.separator())
 
+        let sourceItem = NSMenuItem(title: "内容来源", action: nil, keyEquivalent: "")
+        let sourceMenu = NSMenu()
+        for src in StickerSource.allCases {
+            let item = NSMenuItem(title: src.displayName, action: #selector(setSource(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = src.rawValue
+            sourceMenu.addItem(item)
+        }
+        m.setSubmenu(sourceMenu, for: sourceItem)
+        m.addItem(sourceItem)
+
         let modeItem = NSMenuItem(title: "贴法", action: nil, keyEquivalent: "")
         let modeMenu = NSMenu()
         for mode in StickerMode.allCases {
@@ -201,6 +218,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
                 if let raw = subItem.representedObject as? String,
                    let look = StickerAppearance(rawValue: raw) {
                     subItem.state = (look == settings.appearance) ? .on : .off
+                } else if let raw = subItem.representedObject as? String,
+                          let src = StickerSource(rawValue: raw) {
+                    subItem.state = (src == settings.source) ? .on : .off
                 } else if let modeRaw = subItem.representedObject as? String,
                    StickerMode(rawValue: modeRaw) != nil {
                     subItem.state = (modeRaw == settings.mode.rawValue) ? .on : .off
@@ -226,7 +246,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     }
 
     @objc private func reloadPage() {
-        panel.content.reload()
+        panel.reload()
     }
 
     /// Cmd+V 万一还是不通，右键里这一条直接走剪贴板 → 网页输入框
@@ -236,6 +256,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         if let s = settings.normalizedURLString(), let url = URL(string: s) {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    /// 切换内容来源：原生面板 / 网页
+    @objc private func setSource(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let src = StickerSource(rawValue: raw), src != settings.source else { return }
+        settings.source = src
+        settings.save()
+        panel.update(settings: settings)
+        panel.load()
     }
 
     @objc private func setMode(_ sender: NSMenuItem) {
@@ -269,7 +299,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
                 guard let self = self else { return }
                 guard self.settings.appearance == .auto else { return }
                 self.panel.applyAppearance()
-                self.panel.content.reload()
+                self.panel.reload()
             }
     }
 
@@ -304,13 +334,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
                 newSettings.save()
                 self.panel.isMovableByWindowBackground = !newSettings.lockPosition
                 self.panel.update(settings: newSettings)
-                self.panel.content.load()
+                self.panel.load()
                 self.closeSettings()
             },
             onCancel: { [weak self] in self?.closeSettings() }
         )
 
-        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 500, height: 510),
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 540, height: 680),
                            styleMask: [.titled, .closable],
                            backing: .buffered,
                            defer: false)

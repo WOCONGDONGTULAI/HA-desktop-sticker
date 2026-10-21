@@ -2,9 +2,16 @@ import AppKit
 import CoreGraphics
 
 /// 贴纸本体：一个无边框、圆角、可拖动的 NSPanel。
+/// 内容有两种：原生面板（直连 HA API）和网页（嵌仪表盘），由 settings.source 决定。
 final class StickerPanel: NSPanel {
-    let content: StickerContentView
+    let web: StickerContentView
+    let native: NativeContentView
+
+    /// 兼容旧调用：粘贴 / 清 cookie 这些只跟网页有关
+    var content: StickerContentView { web }
+
     private var settings: StickerSettings
+    private let container = NSView()
 
     /// 拖动结束后回调（用来把新位置写进配置）
     var onFrameChanged: (() -> Void)?
@@ -19,7 +26,8 @@ final class StickerPanel: NSPanel {
 
     init(settings: StickerSettings) {
         self.settings = settings
-        self.content = StickerContentView(settings: settings)
+        self.web = StickerContentView(settings: settings)
+        self.native = NativeContentView(settings: settings)
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: settings.width, height: settings.height),
             // 注意：不能带 .nonactivatingPanel —— 带了点击就不会激活 app，
@@ -41,13 +49,44 @@ final class StickerPanel: NSPanel {
         // 所有桌面空间都可见，切 Space / 全屏应用时不会丢
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
 
-        self.contentView = content
+        container.wantsLayer = true
+        container.layer?.cornerRadius = CGFloat(settings.cornerRadius)
+        container.layer?.masksToBounds = true
+        self.contentView = container
+
+        for v in [web, native] as [NSView] {
+            v.frame = container.bounds
+            v.autoresizingMask = [.width, .height]
+            container.addSubview(v)
+        }
+
         self.alphaValue = settings.opacity
         self.minSize = NSSize(width: 160, height: 160)
+        applySource()
         applyMode(settings.mode)
         applyFrame()
         applyAppearance()
         applyAdjustUI()
+    }
+
+    /// 网页 / 原生面板二选一
+    private func applySource() {
+        web.isHidden = (settings.source != .web)
+        native.isHidden = (settings.source != .native)
+    }
+
+    func load() {
+        switch settings.source {
+        case .web:    web.load()
+        case .native: native.load()
+        }
+    }
+
+    func reload() {
+        switch settings.source {
+        case .web:    web.reload()
+        case .native: native.reload()
+        }
     }
 
     // MARK: - 调整模式 / 锁定
@@ -76,11 +115,11 @@ final class StickerPanel: NSPanel {
                     self?.captureFrame()
                     self?.onFrameChanged?()
                 }
-                content.addSubview(bar)
+                container.addSubview(bar)
                 NSLayoutConstraint.activate([
-                    bar.leadingAnchor.constraint(equalTo: content.leadingAnchor),
-                    bar.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-                    bar.topAnchor.constraint(equalTo: content.topAnchor),
+                    bar.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+                    bar.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+                    bar.topAnchor.constraint(equalTo: container.topAnchor),
                     bar.heightAnchor.constraint(equalToConstant: 22)
                 ])
                 dragBar = bar
@@ -91,8 +130,8 @@ final class StickerPanel: NSPanel {
         }
 
         // 描边提示：调整模式下一圈细边，锁定后消失
-        content.layer?.borderWidth = adjusting ? 1.5 : 0
-        content.layer?.borderColor = NSColor.controlAccentColor.cgColor
+        container.layer?.borderWidth = adjusting ? 1.5 : 0
+        container.layer?.borderColor = NSColor.controlAccentColor.cgColor
     }
 
     /// 允许在需要输入时（比如 HA 登录框）自动拿到键盘焦点
@@ -101,7 +140,7 @@ final class StickerPanel: NSPanel {
 
     // MARK: - 拷贝粘贴
     // app 没有 Nib、也没有主菜单，Cmd+C/V/X/A 这些默认全都不通，
-    // 这里直接在窗口层面拦下来转发给响应链（第一响应者就是网页里的输入框）。
+    // 这里直接在窗口层面拦下来转发给响应链（第一响应者是网页里的输入框）。
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         guard event.modifierFlags.contains(.command),
@@ -142,11 +181,11 @@ final class StickerPanel: NSPanel {
             let now = NSEvent.mouseLocation
             let dx = now.x - start.x
             let dy = now.y - start.y
-            // 还没超过阈值：先吞掉，别让网页开始框选
+            // 还没超过阈值：先吞掉，别让 content 开始框选
             if !didDrag && hypot(dx, dy) < StickerPanel.dragThreshold { return }
             didDrag = true
             setFrameOrigin(NSPoint(x: origin.x + dx, y: origin.y + dy))
-            // 不转发给 webview，否则会触发网页内部的选择 / 拖拽
+            // 不转发给 content，否则会触发网页内部的选择 / 拖拽
 
         case .leftMouseUp:
             if didDrag {
@@ -183,12 +222,12 @@ final class StickerPanel: NSPanel {
         }
     }
 
-    /// 深浅色：贴纸窗口 + 网页内容一起切
+    /// 深浅色：贴纸窗口 + 内容一起切
     func applyAppearance() {
         let appearance = settings.appearance.nsAppearance
         self.appearance = appearance
         NSApp.appearance = appearance
-        content.applyAppearance(appearance: appearance, isDark: settings.appearance.resolvedIsDark)
+        web.applyAppearance(appearance: appearance, isDark: settings.appearance.resolvedIsDark)
     }
 
     func applyFrame() {
@@ -223,15 +262,24 @@ final class StickerPanel: NSPanel {
 
     func update(settings newSettings: StickerSettings) {
         let appearanceChanged = newSettings.appearance != settings.appearance
+        let sourceChanged = newSettings.source != settings.source
         settings = newSettings
+
         alphaValue = settings.opacity
-        content.update(settings: settings)
+        container.layer?.cornerRadius = CGFloat(settings.cornerRadius)
+        web.update(settings: settings)
+        native.update(settings: settings)
+
+        applySource()
         applyMode(settings.mode)
         applyFrame()
         applyAppearance()
         applyAdjustUI()
-        if appearanceChanged {
-            content.reload()
+
+        if sourceChanged {
+            load()
+        } else if appearanceChanged {
+            reload()
         }
     }
 

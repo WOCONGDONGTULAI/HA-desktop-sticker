@@ -55,8 +55,26 @@ enum StickerAppearance: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// 贴纸的内容从哪来
+enum StickerSource: String, Codable, CaseIterable, Identifiable {
+    case native   // 原生面板：直接调 HA 的 REST + WebSocket，不走网页
+    case web      // 嵌 HA 网页
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .native: return "原生面板（推荐，快且干净）"
+        case .web:    return "网页（嵌 HA 仪表盘）"
+        }
+    }
+}
+
 struct StickerSettings: Codable {
     var haURL: String = ""
+    var token: String = ""            // HA 长期访问令牌（原生面板用）
+    var entities: String = ""         // 逗号分隔的 entity_id；留空 = 自动挑
+    var source: StickerSource = .native
     var width: Double = 320
     var height: Double = 480
     var opacity: Double = 1.0
@@ -69,7 +87,27 @@ struct StickerSettings: Codable {
     var y: Double?
 
     var isConfigured: Bool {
-        !haURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasURL = !haURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if source == .native {
+            return hasURL && !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        return hasURL
+    }
+
+    /// 原生面板用的基地址：从网页地址里剥掉路径，只留 scheme://host:port
+    var baseURL: URL? {
+        guard let raw = normalizedURLString(), var comps = URLComponents(string: raw) else { return nil }
+        comps.path = ""
+        comps.query = nil
+        comps.fragment = nil
+        return comps.url
+    }
+
+    /// 手填的实体列表（空数组表示自动挑）
+    var explicitEntities: [String] {
+        entities.split(whereSeparator: { ",， \n\t".contains($0) })
+            .map { String($0).trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
     }
 
     /// 没写 scheme 的自动补 http://
@@ -87,7 +125,7 @@ struct StickerSettings: Codable {
     // （Codable 默认不会用默认值兜底，缺 key 会直接 throw，那样会把已配好的地址冲掉）
 
     enum CodingKeys: String, CodingKey {
-        case haURL, width, height, opacity, zoom, cornerRadius, mode, appearance, lockPosition, x, y
+        case haURL, token, entities, source, width, height, opacity, zoom, cornerRadius, mode, appearance, lockPosition, x, y
     }
 
     init() {}
@@ -96,6 +134,9 @@ struct StickerSettings: Codable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = StickerSettings()
         haURL        = try c.decodeIfPresent(String.self, forKey: .haURL) ?? d.haURL
+        token        = try c.decodeIfPresent(String.self, forKey: .token) ?? d.token
+        entities     = try c.decodeIfPresent(String.self, forKey: .entities) ?? d.entities
+        source       = try c.decodeIfPresent(StickerSource.self, forKey: .source) ?? d.source
         width        = try c.decodeIfPresent(Double.self, forKey: .width) ?? d.width
         height       = try c.decodeIfPresent(Double.self, forKey: .height) ?? d.height
         opacity      = try c.decodeIfPresent(Double.self, forKey: .opacity) ?? d.opacity
