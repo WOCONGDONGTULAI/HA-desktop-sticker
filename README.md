@@ -19,7 +19,7 @@ windows/          Windows 贴纸（C# WinForms + WebView2）
 
 HA 里 `设置 → 仪表盘 → 新增仪表盘`，标题随便（比如「贴纸」），把 `home-assistant/dashboard-sticker.yaml` 的内容粘进去，把里面的实体 id 换成你自己的。
 
-记住它的地址，形如 `http://homeassistant.local:8123/sticker`（`/sticker` 是仪表盘路径，`?kiosk` 可隐藏侧边栏和顶栏）。
+记住它的地址，形如 `http://homeassistant.local:8123/sticker`（`/ha-sticker` 是仪表盘路径，`?kiosk` 可隐藏侧边栏和顶栏）。
 
 ### 2. 装贴纸
 
@@ -33,7 +33,7 @@ HA 里 `设置 → 仪表盘 → 新增仪表盘`，标题随便（比如「贴�
 贴纸首次运行会弹出设置框，把仪表盘地址填进去（建议带 `?kiosk`）：
 
 ```
-http://homeassistant.local:8123/sticker?kiosk
+http://homeassistant.local:8123/ha-sticker?kiosk
 ```
 
 第一次会要求你登录 HA，登录一次之后 cookie 长期保存，之后都是自动进。

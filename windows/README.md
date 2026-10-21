@@ -22,7 +22,7 @@ build.bat
 
 1. 首次运行自动弹设置框 → 填 HA 仪表盘地址：
    ```
-   http://homeassistant.local:8123/sticker?kiosk
+   http://homeassistant.local:8123/ha-sticker?kiosk
    ```
 2. 第一次会跳 HA 登录页，登录一次，之后永久自动登录（cookie 存在 `%LOCALAPPDATA%\HASticker\WebView2Data`）。
 3. 开机自启：`Win+R` → `shell:startup` → 把 exe 的快捷方式放进去。

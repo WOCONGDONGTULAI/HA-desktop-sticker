@@ -2,14 +2,29 @@
 
 贴纸窗口很小（默认 320×480），所以别拿你平时那个大仪表盘往里塞，专门做一个。
 
-## 1. 新建仪表盘
+## 0. 最省事：脚本自动建
+
+```bash
+pip install websocket-client
+python3 create_sticker_dashboard.py --url http://192.168.5.18:8123 --token <长期访问令牌>
+```
+
+长期访问令牌：HA → 左下角头像 → 安全 → 长期访问令牌 → 创建令牌。
+脚本会建好 `ha-sticker` 仪表盘并写入配置，最后打印贴纸该填的地址。
+
+## 1. 手动新建仪表盘
 
 `设置 → 仪表盘 → 右下角「新增仪表盘」`
 
 - 标题：`贴纸`
-- URL 路径：`sticker`（后面访问地址就是它）
+- URL 路径：`ha-sticker`
 - 图标：随便
 - 仅管理员可见：看你需不需要
+
+> ⚠️ **URL 路径必须含连字符 `-`**。新版 HA（2026.x）会拒绝纯字母路径：
+> `invalid_format: Url path needs to contain a hyphen (-)`。
+> 写成 `sticker` 的结果是仪表盘建不出来、访问一直 404 —— 这个坑很隐蔽。
+> 所以这里用 `ha-sticker`，贴纸地址就是 `/ha-sticker?kiosk`。
 
 ## 2. 贴内容
 
@@ -33,7 +48,7 @@
 默认进去左边一条侧边栏、上面一条标题栏，很占地方。在地址后加 `?kiosk`：
 
 ```
-http://homeassistant.local:8123/sticker?kiosk
+http://homeassistant.local:8123/ha-sticker?kiosk
 ```
 
 贴纸里填地址时直接带上这个参数就行。
@@ -53,7 +68,7 @@ http://homeassistant.local:8123/sticker?kiosk
 
 | 场景 | 地址 |
 | --- | --- |
-| 本地域名 | `http://homeassistant.local:8123/sticker?kiosk` |
-| 内网 IP | `http://192.168.1.50:8123/sticker?kiosk` |
-| 有公网 + HTTPS | `https://ha.example.com/sticker?kiosk` |
+| 本地域名 | `http://homeassistant.local:8123/ha-sticker?kiosk` |
+| 内网 IP | `http://192.168.1.50:8123/ha-sticker?kiosk` |
+| 有公网 + HTTPS | `https://ha.example.com/ha-sticker?kiosk` |
 | 某个子视图 | `http://homeassistant.local:8123/sticker/lights?kiosk` |

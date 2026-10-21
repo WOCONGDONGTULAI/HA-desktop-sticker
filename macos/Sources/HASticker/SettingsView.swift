@@ -36,7 +36,7 @@ struct SettingsView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Home Assistant 仪表盘地址").font(.subheadline)
-                TextField("http://homeassistant.local:8123/sticker?kiosk", text: $urlText)
+                TextField("http://homeassistant.local:8123/ha-sticker?kiosk", text: $urlText)
                     .textFieldStyle(.roundedBorder)
                 Text("带上 ?kiosk 可以隐藏侧边栏和顶栏")
                     .font(.caption)

@@ -38,7 +38,7 @@ namespace HASticker
             return s;
         }
 
-        public static string SampleUrl => "http://homeassistant.local:8123/sticker?kiosk";
+        public static string SampleUrl => "http://homeassistant.local:8123/ha-sticker?kiosk";
 
         private static string ConfigPath =>
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),

@@ -1,5 +1,5 @@
 {
-  "HaUrl": "http://homeassistant.local:8123/sticker?kiosk",
+  "HaUrl": "http://homeassistant.local:8123/ha-sticker?kiosk",
   "Width": 320,
   "Height": 480,
   "X": -1,

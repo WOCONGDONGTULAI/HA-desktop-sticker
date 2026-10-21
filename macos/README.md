@@ -31,7 +31,7 @@ chmod +x make-app.sh
 
 1. 首次运行自动弹设置框 → 填 HA 仪表盘地址，比如：
    ```
-   http://homeassistant.local:8123/sticker?kiosk
+   http://homeassistant.local:8123/ha-sticker?kiosk
    ```
 2. 第一次会跳 HA 登录页，登录一次，之后永久自动登录。
 3. 之后每次开机启动，贴纸就在那儿了。

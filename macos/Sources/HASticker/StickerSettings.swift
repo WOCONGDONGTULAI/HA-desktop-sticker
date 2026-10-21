@@ -41,7 +41,7 @@ struct StickerSettings: Codable {
         return s
     }
 
-    static let sampleURL = "http://homeassistant.local:8123/sticker?kiosk"
+    static let sampleURL = "http://homeassistant.local:8123/ha-sticker?kiosk"
 }
 
 extension StickerSettings {
