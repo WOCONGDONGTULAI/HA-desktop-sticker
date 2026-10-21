@@ -73,6 +73,33 @@ chmod +x make-app.sh
 
 设置存在 `~/Library/Application Support/HASticker/settings.json`，删掉这个文件就恢复默认。
 
+## 滚动条
+
+贴纸里的网页滚动条默认是**隐藏的**（滚动时短暂浮出，松手就消失），不占那 15px 宽度。
+
+实现上试过四条路，只有最后一条对所有情况都有效：
+
+| 办法 | 结果 |
+| --- | --- |
+| 文档级 CSS `::-webkit-scrollbar{width:0}` | 只对主文档有效，**穿不进 shadow DOM** |
+| 把 CSS 塞进 shadow root | 样式在，但滚动条照画（HA 是 Lit 写的，页面几乎全是 shadow DOM） |
+| `WKWebView` 私有开关 `_setAlwaysShowsVerticalScroller:` | 无效 |
+| **app 域里设 `AppleShowScrollBars = WhenScrolling`** | ✅ 全部生效，0px |
+
+关键点是：系统设置 → 外观 →「显示滚动条」如果是**「始终」**，WebKit 会画 15px 常驻滚动条。
+`NSUserDefaults` 的查找顺序是 app 域 → 全局域，所以把 `AppleShowScrollBars` 写进
+**本 app 自己的域**就能只覆盖这一个 app，不动系统全局设置：
+
+```swift
+UserDefaults.standard.set("WhenScrolling", forKey: "AppleShowScrollBars")  // 必须在建 WKWebView 之前
+```
+
+除此之外还注入了文档级 CSS（主文档的滚动条彻底消失）+ 劫持 `attachShadow` 往每个
+shadow root 里塞样式（能盖住的就盖住）。
+
+> 想恢复常驻滚动条：`defaults write com.congdongtulai.HASticker AppleShowScrollBars Always`
+> 然后重启贴纸。
+
 ## 贴法说明
 
 | 模式 | 表现 |

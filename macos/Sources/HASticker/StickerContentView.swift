@@ -32,8 +32,15 @@ final class StickerContentView: NSView, WKNavigationDelegate {
         let config = WKWebViewConfiguration()
         // 默认数据存储是持久的，HA 登录态会一直留着
         config.websiteDataStore = .default()
-        // 拖动贴纸时不希望网页里的文字被框选
-        config.userContentController = WKUserContentController()
+        // 隐藏滚动条用：网页里的滚动条（含 HA 那些 shadow DOM 内部容器）
+        let uc = WKUserContentController()
+        uc.addUserScript(WKUserScript(source: Self.noScrollbarJS,
+                                      injectionTime: .atDocumentStart,
+                                      forMainFrameOnly: false))
+        uc.addUserScript(WKUserScript(source: Self.noScrollbarJS,
+                                      injectionTime: .atDocumentEnd,
+                                      forMainFrameOnly: false))
+        config.userContentController = uc
 
         let wv = StickerWebView(frame: bounds, configuration: config)
         wv.autoresizingMask = [.width, .height]
@@ -47,6 +54,84 @@ final class StickerContentView: NSView, WKNavigationDelegate {
         }
         addSubview(wv)
         self.webView = wv
+        hideScrollers()
+    }
+
+    // MARK: - 隐藏滚动条
+
+    /// 注入到页面里的 CSS：把滚动条宽度/高度压成 0。
+    /// 对普通 DOM 有效；HA 那些 shadow DOM 内部靠下面 hideScrollers() 兜底。
+    private static let noScrollbarJS = """
+    (function () {
+      var ID = '__ha_sticker_noscroll__';
+      var CSS = 'html,body{scrollbar-width:none !important;-ms-overflow-style:none !important;}' +
+                '::-webkit-scrollbar,*::-webkit-scrollbar{' +
+                'width:0 !important;height:0 !important;display:none !important;' +
+                'background:transparent !important;}';
+
+      function inject(root) {
+        try {
+          if (!root || root.querySelector('#' + ID)) return;
+          var st = document.createElement('style');
+          st.id = ID;
+          st.textContent = CSS;
+          (root.head || root).appendChild(st);
+        } catch (e) {}
+      }
+
+      // 1) 主文档
+      function doc() {
+        var host = document.head || document.documentElement;
+        if (host) inject(host); else setTimeout(doc, 10);
+      }
+      doc();
+      document.addEventListener('DOMContentLoaded', doc);
+
+      // 2) 补扫已经存在的 shadow root（万一脚本比页面晚）
+      function sweep(root, depth) {
+        if (!root || depth > 12) return;
+        var all = root.querySelectorAll('*');
+        for (var i = 0; i < all.length; i++) {
+          var sr = all[i].shadowRoot;
+          if (sr) { inject(sr); sweep(sr, depth + 1); }
+        }
+      }
+      [300, 1000, 3000].forEach(function (ms) {
+        setTimeout(function () { try { sweep(document, 0); } catch (e) {} }, ms);
+      });
+
+      // 3) 关键：劫持 attachShadow。
+      //    HA 是 Lit 写的，页面几乎全是 shadow DOM，而文档级 CSS 穿不进 shadow root
+      //    （实测过：只加文档级 CSS 时，shadow DOM 里的滚动条照样画出来）。
+      //    在 documentStart 就把 attachShadow 换掉，之后新建的 shadow root 全部自动注入。
+      var orig = Element.prototype.attachShadow;
+      if (orig) {
+        Element.prototype.attachShadow = function (opts) {
+          var sr = orig.call(this, opts);
+          if (sr) inject(sr);
+          return sr;
+        };
+      }
+    })();
+    """
+
+    /// WebKit 在 macOS 上用的是 WKScrollView（NSScrollView 的子类），
+    /// 直接把两条 scroller 去掉 —— 这样连 shadow DOM 里的滚动条也一起没了。
+    /// 只是隐藏滚动条，滚轮 / 触控板照样能滑。
+    private func hideScrollers() {
+        func kill(_ view: NSView) {
+            for v in view.subviews {
+                if let sv = v as? NSScrollView {
+                    sv.hasVerticalScroller = false
+                    sv.hasHorizontalScroller = false
+                    sv.verticalScroller?.isHidden = true
+                    sv.horizontalScroller?.isHidden = true
+                    sv.autohidesScrollers = true
+                }
+                kill(v)
+            }
+        }
+        kill(webView)
     }
 
     func update(settings newSettings: StickerSettings) {
@@ -148,6 +233,11 @@ final class StickerContentView: NSView, WKNavigationDelegate {
     }
 
     // MARK: - WKNavigationDelegate
+
+    /// 每次加载完再压一次滚动条（SPA 换页后 WebKit 可能把 scroller 装回来）
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        hideScrollers()
+    }
 
     /// 先看 HTTP 状态码：404 基本就是仪表盘路径不对，直接给个能看懂的错误页
     func webView(_ webView: WKWebView,
