@@ -34,6 +34,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         panel.load()
         panel.orderFrontRegardless()
 
+        // app 挪过位置就更新一下开机启动里记的那条路径
+        LaunchAtLogin.syncPathIfNeeded()
+
         installRightClickMonitor()
         observeFrameChanges()
         observeSystemAppearance()
@@ -209,6 +212,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         lockItem.representedObject = "lock"
         m.addItem(lockItem)
 
+        let loginItem = NSMenuItem(title: "开机自动启动", action: #selector(toggleLoginItem), keyEquivalent: "")
+        loginItem.representedObject = "login"
+        m.addItem(loginItem)
+
         m.addItem(.separator())
         m.addItem(withTitle: "清除登录状态", action: #selector(clearLogin), keyEquivalent: "")
         m.addItem(.separator())
@@ -240,6 +247,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         if let lock = menu.items.first(where: { ($0.representedObject as? String) == "lock" }) {
             lock.state = settings.lockPosition ? .on : .off
             lock.title = settings.lockPosition ? "已锁定（取消勾选=调整模式）" : "锁定（固定位置与大小）"
+        }
+        if let login = menu.items.first(where: { ($0.representedObject as? String) == "login" }) {
+            login.state = LaunchAtLogin.isEnabled ? .on : .off
         }
     }
 
@@ -322,6 +332,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         settings.lockPosition.toggle()
         settings.save()
         panel.isMovableByWindowBackground = !settings.lockPosition
+    }
+
+    /// 开机自动启动：往 ~/Library/LaunchAgents 写一份 plist
+    @objc private func toggleLoginItem() {
+        if LaunchAtLogin.isEnabled {
+            if let err = LaunchAtLogin.disable() { showError(err, title: "关掉自动启动失败") }
+        } else {
+            if let err = LaunchAtLogin.enable() { showError(err, title: "开启自动启动失败") }
+        }
+    }
+
+    private func showError(_ message: String, title: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = title
+        alert.informativeText = message
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
     }
 
     @objc private func clearLogin() {

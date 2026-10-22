@@ -67,6 +67,12 @@ Windows 版改的是 `home-assistant/dashboard-sticker.yaml` 里的实体和 `ic
 - Windows 桌面层用的是给 `Progman` 发 `0x052C` 消息、把窗口挂到 Explorer 的 `WorkerW` 上——资源管理器重启会失效，程序会自动重试，也可以手动「重新贴回桌面」。
 - macOS 桌面层是把窗口 level 设到 `kCGDesktopWindowLevel` 之上，全空间可见（切桌面都在）。
 
+## 开机自动启动
+
+macOS：菜单栏图标 → **「开机自动启动」**，勾上即可（走 launchd，不会显示在系统的登录项列表里）。
+Windows 版暂未提供，需要的话把快捷方式丢进
+`shell:startup`（`C:\Users\<你>\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup`）。
+
 ## 常见问题
 
 **打不开 / 白屏**
