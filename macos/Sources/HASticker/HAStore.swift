@@ -77,8 +77,40 @@ final class HAStore: ObservableObject {
     private var token = ""
     private var socket: URLSessionWebSocketTask?
     private var loop: Task<Void, Never>?
+    private var heartbeat: Task<Void, Never>?
+    private var refresher: Task<Void, Never>?
     private var retryCount = 0
     private var currentKey: String = ""   // base+token 的指纹，用来判断要不要重连
+    private var awakeObserver: NSObjectProtocol?
+    private var napToken: NSObjectProtocol?
+
+    /// 兜底轮询间隔（秒）。WebSocket 正常时基本用不上，纯粹防「socket 假死但没人报错」
+    private let refreshInterval: UInt64 = 60
+    /// 心跳间隔（秒）。睡醒 / 换网络后 socket 会变成半开，只有主动 ping 才发得现
+    private let pingInterval: UInt64 = 20
+
+    init() {
+        // 别让系统把后台的定时器 nap 掉，否则贴纸会越走越慢
+        napToken = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiatedAllowingIdleSystemSleep],
+            reason: "HA 贴纸需要保持状态实时")
+        // 睡眠醒来后 socket 必然是死的，立刻重连 + 拉一次全量
+        awakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let store = self else { return }
+            Task { await store.kicked() }
+        }
+    }
+
+    deinit {
+        if let awakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(awakeObserver)
+        }
+        if let napToken {
+            ProcessInfo.processInfo.endActivity(napToken)
+        }
+    }
 
     // MARK: - 配置
 
@@ -113,6 +145,10 @@ final class HAStore: ObservableObject {
     func stop() {
         loop?.cancel()
         loop = nil
+        heartbeat?.cancel()
+        heartbeat = nil
+        refresher?.cancel()
+        refresher = nil
         socket?.cancel(with: .goingAway, reason: nil)
         socket = nil
     }
@@ -122,7 +158,32 @@ final class HAStore: ObservableObject {
     private func bootstrap() async {
         status = .connecting
         await fetchAll()
+        startRefresher()
         await runSocket()
+    }
+
+    /// 兜底：每隔一段时间主动拉一次全量。
+    /// WebSocket 假死时（Mac 睡过、网线拔过），接收循环会一直挂着不报错，
+    /// 光靠事件永远等不到更新，所以必须有一条独立的定时拉取。
+    private func startRefresher() {
+        refresher?.cancel()
+        refresher = Task { [weak self] in
+            guard let interval = self?.refreshInterval else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: interval * 1_000_000_000)
+                if Task.isCancelled { return }
+                await self?.fetchAll()
+            }
+        }
+    }
+
+    /// 被外部叫醒（睡眠恢复等）：socket 掐掉重来，并立刻拉一次
+    func kicked() async {
+        guard base != nil, !token.isEmpty, token != "demo" else { return }
+        socket?.cancel(with: .goingAway, reason: nil)
+        socket = nil
+        await fetchAll()
+        if loop == nil { loop = Task { [weak self] in await self?.runSocket() } }
     }
 
     private func fetchAll() async {
@@ -143,7 +204,9 @@ final class HAStore: ObservableObject {
             for d in arr {
                 if let s = HAState(dict: d) { map[s.entityID] = s }
             }
-            states = map
+            // 只在真有差异时才赋值，否则每次轮询都白刷一遍界面
+            if map != states { states = map }
+            if case .failed = status { status = .online }
         } catch {
             status = .failed("连不上 HA")
         }
@@ -188,7 +251,9 @@ final class HAStore: ObservableObject {
                 status = .online
                 retryCount = 0
 
-                // 4. 一直收
+                // 4. 一直收；同时开心跳，ping 不通就当它断了
+                let hb = startHeartbeat(task)
+                defer { hb.cancel() }
                 while true {
                     let raw = try await receiveText(task)
                     handle(raw)
@@ -218,6 +283,29 @@ final class HAStore: ObservableObject {
         case .string(let s):  return s
         case .data(let d):    return String(data: d, encoding: .utf8) ?? ""
         @unknown default:     return ""
+        }
+    }
+
+    /// 定时 ping。睡醒 / 换网之后 socket 常常变成「半开」：本端以为还连着，
+    /// receive() 静静挂着不报错，HA 那边其实早就断了。只有主动 ping 才能发现，
+    /// ping 失败就把 socket 掐掉，让上面的接收循环抛错走重连。
+    private func startHeartbeat(_ task: URLSessionWebSocketTask) -> Task<Void, Never> {
+        Task { [weak self] in
+            guard let interval = self?.pingInterval else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: interval * 1_000_000_000)
+                if Task.isCancelled { return }
+                do {
+                    try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
+                        task.sendPing { error in
+                            if let error { c.resume(throwing: error) } else { c.resume() }
+                        }
+                    }
+                } catch {
+                    task.cancel(with: .goingAway, reason: nil)
+                    return
+                }
+            }
         }
     }
 
