@@ -130,11 +130,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     private func buildStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "rectangle.roundedtop.fill",
-                                   accessibilityDescription: "HA 贴纸")
-            button.image?.isTemplate = true
+            if let logo = Self.menuBarLogo() {
+                button.image = logo
+            } else {
+                // 资源缺失时退回原来的 SF Symbol，别让菜单栏空着
+                button.image = NSImage(systemSymbolName: "rectangle.roundedtop.fill",
+                                       accessibilityDescription: "HA 贴纸")
+                button.image?.isTemplate = true
+            }
+            button.image?.accessibilityDescription = "HA 贴纸"
         }
         statusItem.menu = buildMenu()
+    }
+
+    /// 菜单栏图标：HA 的「房子 + 节点」标志，作为模板图跟着菜单栏深浅色自动反色。
+    /// Resources 里放 StatusIcon.png / @2x / @3x，缺哪张就少一层，全缺则返回 nil。
+    private static func menuBarLogo() -> NSImage? {
+        let bundled = Bundle.main.resourceURL
+        var reps: [NSBitmapImageRep] = []
+        for (name, scale) in [("StatusIcon", 1), ("StatusIcon@2x", 2), ("StatusIcon@3x", 3)] {
+            guard let url = bundled?.appendingPathComponent("\(name).png"),
+                  let data = try? Data(contentsOf: url),
+                  let rep = NSBitmapImageRep(data: data) else { continue }
+            // 告诉 AppKit 这张位图是几倍图，否则 @2x 会被当成 2 倍大小
+            rep.size = NSSize(width: rep.pixelsWide / scale, height: rep.pixelsHigh / scale)
+            reps.append(rep)
+        }
+        guard let first = reps.first else { return nil }
+        let image = NSImage(size: first.size)
+        reps.forEach { image.addRepresentation($0) }
+        image.isTemplate = true
+        return image
     }
 
     // MARK: - 右键菜单

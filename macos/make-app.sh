@@ -24,6 +24,9 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 cp ".build/release/HASticker" "$APP/Contents/MacOS/HASticker"
 cp "Resources/Info.plist" "$APP/Contents/Info.plist"
+# 图标资源：菜单栏模板图（@1x/@2x/@3x）+ 应用图标
+cp Resources/StatusIcon.png Resources/StatusIcon@2x.png Resources/StatusIcon@3x.png "$APP/Contents/Resources/" 2>/dev/null || true
+cp Resources/AppIcon.icns "$APP/Contents/Resources/" 2>/dev/null || true
 chmod +x "$APP/Contents/MacOS/HASticker"
 
 # 去掉 quarantine 标记（自己编的 app 常被 Gatekeeper 拦）
