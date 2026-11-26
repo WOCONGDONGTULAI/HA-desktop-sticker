@@ -13,9 +13,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>20</string>
+	<string>21</string>
 	<key>CFBundleVersion</key>
-	<string>20</string>
+	<string>21</string>
 	<!-- 应用图标（Finder / 关于本机里看到的那张） -->
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>

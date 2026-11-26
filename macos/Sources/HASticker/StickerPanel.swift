@@ -142,6 +142,21 @@ final class StickerPanel: NSPanel {
         container.layer?.borderColor = NSColor.controlAccentColor.cgColor
     }
 
+    /// 锁 / 解锁（菜单里那个勾选）。必须整块重算：拖动条、描边、styleMask 里的 .resizable
+    /// 都跟着 lockPosition 走，只改 isMovableByWindowBackground 的话，
+    /// 取消勾选后边缘照样拖不动、拖动条也不出现，看起来就是「这条菜单没反应」。
+    func setLocked(_ locked: Bool) {
+        // 先记住此刻的位置和大小，锁定后就固定在这个尺寸上
+        captureFrame()
+        settings.lockPosition = locked
+        applyAdjustUI()
+
+        // 拖动条是加进/移出 container 的，布局和合成层都要重来一遍，否则会留残影
+        container.needsLayout = true
+        container.layoutSubtreeIfNeeded()
+        refreshDisplay()
+    }
+
     /// 允许在需要输入时（比如 HA 登录框）自动拿到键盘焦点
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }

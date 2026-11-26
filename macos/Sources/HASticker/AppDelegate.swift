@@ -355,9 +355,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     }
 
     @objc private func toggleLock() {
-        settings.lockPosition.toggle()
+        // 交给 panel 统一处理：它要重算 styleMask(.resizable)、拖动条和描边。
+        // 以前这里只改 isMovableByWindowBackground，于是取消勾选后贴纸还是拖不动、缩放不了。
+        panel.setLocked(!settings.lockPosition)
+        // panel 那边改的是它自己持有的那份 settings，这里同步一下再落盘
+        settings = panel.currentSettings
         settings.save()
-        panel.isMovableByWindowBackground = !settings.lockPosition
     }
 
     /// 开机自动启动：往 ~/Library/LaunchAgents 写一份 plist
