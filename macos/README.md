@@ -4,28 +4,32 @@
 
 ## 装（两种方式，挑一个）
 
-### A. 直接下载现成的 app
+### A. 直接下载现成的 app（换电脑推荐）
 
 去 [Releases](https://github.com/WOCONGDONGTULAI/HA-desktop-sticker/releases) 下载
-`HASticker.app.zip`，解压后把 `HASticker.app` 拖进「应用程序」文件夹，双击运行。
+`HASticker-<版本号>.dmg`，双击打开，把 `HASticker` 拖到旁边的「应用程序」上就装好了。
+（也有 `HASticker.app.zip`，解压后同样拖进「应用程序」。）
 
 首次打开如果提示「无法打开，因为它来自身份不明的开发者」：右键 app → 「打开」→ 确认
 （自己编译的 app 没有苹果开发者签名，这是正常现象，只第一次要这样）。
+
+> DMG 里带了一份 `安装说明.txt`，把「换电脑怎么连配置一起搬」也写在里面了。
 
 ### B. 自己编译
 
 ```bash
 cd macos
 chmod +x make-app.sh
-./make-app.sh
+./make-app.sh        # 出 HASticker.app
+./make-dmg.sh        # 顺手出 DMG
 ```
 
-产出 `macos/HASticker.app`。脚本优先用 SwiftPM；机器上 SwiftPM 不完整时会自动退回 `swiftc` 直接编译。
+产出 `macos/HASticker.app`（arm64 + x86_64 通用二进制，Intel / Apple Silicon 都能跑），
+`make-dmg.sh` 再打成 `HASticker-<版本号>.dmg`。
 
-> 第一次运行可能被 Gatekeeper 拦：右键 app → 「打开」→ 确认。脚本已经帮你清过 quarantine 标记。
+> 第一次运行可能被 Gatekeeper 拦：右键 app → 「打开」→ 确认。脚本已经帮你清过 quarantine 标记并做了临时签名。
 
-要求 macOS 12+（Apple Silicon 与 Intel 通用，现成 app 是 arm64 版；Intel 机器用方式 B 自己编译）。
-编译需要 Xcode 命令行工具（`xcode-select --install`）。
+要求 macOS 12+。编译需要 Xcode 命令行工具（`xcode-select --install`），不需要完整 Xcode。
 
 ## 用
 
@@ -197,8 +201,8 @@ app 是 `LSUIElement=1`（不占 Dock），只有菜单栏入口。如果图标�
 
 **改代码**
 ```bash
-swift build          # 编译
-./make-app.sh        # 编译 + 打包
+./make-app.sh        # 编译（通用二进制）+ 打包 app
+./make-dmg.sh        # 再打成 DMG
 ```
 想用 Xcode 打开：`open Package.swift`（Xcode 12+ 支持 SPM 工程）。
 

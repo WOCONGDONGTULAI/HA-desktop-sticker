@@ -9,6 +9,10 @@ xcuserdata/
 HASticker/HASticker.app/
 *.app/
 
+# 编译产物/安装包只走 Releases，不入库
+*.dmg
+macos/HASticker*.zip
+
 # Windows
 bin/
 obj/
